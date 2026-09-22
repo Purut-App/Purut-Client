@@ -13,9 +13,9 @@ import { useDays } from '@/features/vocabulary/use-vocabulary';
 import { useTheme } from '@/hooks/use-theme';
 
 const LEVELS: { value: VocabLevel; label: string }[] = [
-  { value: 'BEGINNER', label: 'Beginner' },
-  { value: 'INTERMEDIATE', label: 'Intermediate' },
-  { value: 'ADVANCED', label: 'Advanced' },
+  { value: 'GRADE_1', label: '고1' },
+  { value: 'GRADE_2', label: '고2' },
+  { value: 'GRADE_3', label: '고3' },
 ];
 
 /** 레벨 선택 → DAY 리스트. 기본값은 내 레벨이고 다른 레벨도 열람할 수 있다. */
@@ -29,7 +29,7 @@ export default function VocabularyHomeScreen() {
   const selectedLevel = level ?? myLevel;
 
   // 레벨을 바꾸면 목록이 통째로 달라지는데 스크롤 위치는 그대로 남는다.
-  // Beginner 를 DAY 20 까지 내리다 Advanced 로 옮기면 DAY 20 부터 보인다.
+  // 고1 을 DAY 20 까지 내리다 고3 으로 옮기면 DAY 20 부터 보인다.
   //
   // 목록을 이미 받아둔 레벨로 옮기면 ScrollView 가 다시 마운트되지 않아
   // 위치가 남는다. 처음 보는 레벨은 로딩 화면을 거치며 새로 마운트돼 저절로
@@ -166,7 +166,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 14,
   },
-  // Intermediate 가 길어 고정 폭으로는 셋이 안 들어간다. 남는 폭을 셋이 나눠 갖는다
+  // 셋이 폭을 나눠 갖는다. 라벨이 짧아졌지만 균등 배분이 보기 좋다
   levelChip: {
     flex: 1,
     alignItems: 'center',

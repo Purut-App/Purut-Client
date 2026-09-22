@@ -7,7 +7,14 @@ import { TextField } from '@/components/text-field';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Palette } from '@/constants/theme';
+import type { SocialProvider } from '@/features/auth/api';
 import { useAuthStore } from '@/features/auth/auth-store';
+import {
+  getSocialCredential,
+  notifyUnavailable,
+  SocialLoginUnavailable,
+} from '@/features/auth/social-login';
+import { availableProviders, Divider, SocialButton } from '@/features/auth/social-buttons';
 import { useFormError } from '@/features/auth/use-form-error';
 import { useTheme } from '@/hooks/use-theme';
 
@@ -15,6 +22,7 @@ export default function SignUpScreen() {
   const router = useRouter();
   const theme = useTheme();
   const register = useAuthStore((state) => state.register);
+  const signInWithSocial = useAuthStore((state) => state.signInWithSocial);
   const { message, fields, capture, clear } = useFormError();
 
   const [name, setName] = useState('');
@@ -22,13 +30,15 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null);
 
   const canSubmit =
     name.trim().length > 0 &&
     email.trim().length > 0 &&
     password.length >= 8 &&
     agreed &&
-    !submitting;
+    !submitting &&
+    pendingProvider === null;
 
   async function handleSubmit() {
     clear();
@@ -40,6 +50,26 @@ export default function SignUpScreen() {
       capture(error);
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  // 소셜 로그인도 첫 로그인이 곧 가입이다. 동의 없이 계정이 생기면 안 되므로
+  // 이메일 가입과 같은 체크박스를 요구한다
+  async function handleSocial(provider: SocialProvider) {
+    clear();
+    setPendingProvider(provider);
+    try {
+      const { credential, displayName } = await getSocialCredential(provider);
+      await signInWithSocial(provider, credential, displayName);
+      router.replace('/');
+    } catch (error) {
+      if (error instanceof SocialLoginUnavailable) {
+        notifyUnavailable(provider);
+      } else {
+        capture(error);
+      }
+    } finally {
+      setPendingProvider(null);
     }
   }
 
@@ -136,6 +166,26 @@ export default function SignUpScreen() {
             disabled={!canSubmit}
           />
 
+          <Divider label="또는" />
+
+          <View style={styles.socials}>
+            {availableProviders().map((provider) => (
+              <SocialButton
+                key={provider}
+                provider={provider}
+                onPress={() => handleSocial(provider)}
+                loading={pendingProvider === provider}
+                disabled={!agreed || (submitting && pendingProvider !== provider)}
+              />
+            ))}
+          </View>
+
+          {!agreed ? (
+            <ThemedText type="small" themeColor="textSecondary" style={styles.socialHint}>
+              소셜 로그인도 약관 동의 후 이용할 수 있어요
+            </ThemedText>
+          ) : null}
+
           <View style={styles.footer}>
             <ThemedText type="small" themeColor="textSecondary">
               이미 계정이 있으신가요?
@@ -194,6 +244,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 14,
     lineHeight: 18,
+  },
+  socials: {
+    gap: 10,
+  },
+  socialHint: {
+    textAlign: 'center',
   },
   footer: {
     flexDirection: 'row',

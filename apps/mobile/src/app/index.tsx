@@ -72,7 +72,7 @@ export default function HomeScreen() {
           />
           <View style={styles.headerCopy}>
             <ThemedText type="smallBold" style={styles.eyebrow}>
-              JW ENGLISH
+              PURUT PURUT
             </ThemedText>
             <ThemedText type="title">
               {me ? `${me.name}님, 안녕하세요 👋` : '안녕하세요 👋'}
