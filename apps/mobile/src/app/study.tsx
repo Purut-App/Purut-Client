@@ -95,7 +95,7 @@ export default function StudyScreen() {
             />
           </View>
           <View style={styles.tileRow}>
-            <MenuTile label="Wiki" image={require('../../assets/images/menu-icons/wiki.png')} />
+            <MenuTile label="Wiki" image={require('../../assets/images/menu-icons/wiki.png')} onPress={() => router.push('/wiki')} />
             <MenuTile label="인강" image={require('../../assets/images/menu-icons/course.png')} />
           </View>
         </View>

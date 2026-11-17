@@ -27,9 +27,9 @@ const PROGRESS_COLORS: Record<ProgressFilter, { background: string; text: string
 };
 
 const LEVELS: { value: VocabLevel; label: string }[] = [
-  { value: 'BEGINNER', label: 'Beginner' },
-  { value: 'INTERMEDIATE', label: 'Intermediate' },
-  { value: 'ADVANCED', label: 'Advanced' },
+  { value: 'GRADE_1', label: '고1' },
+  { value: 'GRADE_2', label: '고2' },
+  { value: 'GRADE_3', label: '고3' },
 ];
 const PROGRESS_FILTERS: { value: ProgressFilter; label: string }[] = [
   { value: 'ALL', label: '전체' },

@@ -46,6 +46,24 @@ export default function HomeScreen() {
 
         <View style={styles.cards}>
           <View style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.sectionTitle}>오늘의 학습</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalValue}>—</Text>
+              <Text style={styles.totalUnit}>분</Text>
+            </View>
+            <View style={styles.sessionRow}>
+              {['단어', '리스닝', '퀴즈'].map((label) => (
+                <View key={label} style={styles.session}>
+                  <Text style={styles.sessionLabel}>{label}</Text>
+                  <View style={styles.progressTrack} />
+                  <Text style={styles.sessionValue}>
+                    <Text style={styles.sessionNumber}>—</Text>분
+                  </Text>
+                </View>
+              ))}
+            </View>
             <Pressable
               accessibilityRole="button"
               onPress={() => router.push('/study')}
@@ -60,10 +78,41 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
+          <View style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.sectionTitle}>이번 주 학습</Text>
+              <Text style={styles.periodLabel}>월 ~ 일</Text>
+            </View>
+            <View style={styles.studyChart} accessible accessibilityLabel="주간 학습 시간 데이터 없음">
+              {['월', '화', '수', '목', '금', '토', '일'].map((day) => (
+                <View key={day} style={styles.chartColumn}>
+                  <Text style={styles.chartValue}>—</Text>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.bar, { height: 3 }]} />
+                  </View>
+                  <Text style={styles.dayLabel}>{day}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.statRow}>
+              <EmptyStat label="학습" unit="회" />
+              <EmptyStat label="퀴즈" unit="회" />
+              <EmptyStat label="학습 시간" unit="시간" />
+            </View>
+          </View>
           <LearningOverview />
 
         </View>
       </ScrollView>
+    </View>
+  );
+}
+
+function EmptyStat({ label, unit }: { label: string; unit: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>—<Text style={styles.statUnit}> {unit}</Text></Text>
     </View>
   );
 }

@@ -57,6 +57,7 @@ const MENUS: Menu[] = [
   {
     key: 'wiki',
     label: 'Wiki',
+    href: '/wiki',
     icon: { ios: 'books.vertical', android: 'dictionary', web: 'dictionary' },
     image: require('../../../assets/images/menu-icons/wiki.png'),
   },

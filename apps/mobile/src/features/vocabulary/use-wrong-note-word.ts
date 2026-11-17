@@ -5,7 +5,7 @@ import { withAuth } from '@/lib/with-auth';
 
 import { fetchDay, fetchDays, type DayDetail, type ResultResponse, type WordItem } from './api';
 
-const LEVELS: VocabLevel[] = ['BEGINNER', 'INTERMEDIATE', 'ADVANCED'];
+const LEVELS: VocabLevel[] = ['GRADE_1', 'GRADE_2', 'GRADE_3'];
 const STALE_TIME = 300_000;
 
 /** Resolve examples through existing DAY reads; the wrong-notes endpoint is unchanged. */

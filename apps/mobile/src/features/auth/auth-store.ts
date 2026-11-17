@@ -2,7 +2,17 @@ import { create } from 'zustand';
 
 import { ApiError } from '@/lib/api';
 
-import { completeOnboarding, fetchMe, login, logout, refreshTokens, signUp, type Me } from './api';
+import {
+  completeOnboarding,
+  fetchMe,
+  login,
+  loginWithSocial,
+  logout,
+  refreshTokens,
+  signUp,
+  type Me,
+  type SocialProvider,
+} from './api';
 import { tokenStorage, type StoredTokens } from './token-storage';
 
 type AuthState = {
@@ -13,6 +23,11 @@ type AuthState = {
 
   restore: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithSocial: (
+    provider: SocialProvider,
+    credential: string,
+    displayName?: string,
+  ) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   signOut: () => Promise<void>;
   /** 만료된 Access Token 을 Refresh 로 교체한다. 실패하면 로그아웃된다. */
@@ -54,6 +69,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async signIn(email, password) {
     const response = await login({ email, password });
+    await applyTokens(set, response);
+  },
+
+  async signInWithSocial(provider, credential, displayName) {
+    const response = await loginWithSocial(provider, credential, displayName);
     await applyTokens(set, response);
   },
 
