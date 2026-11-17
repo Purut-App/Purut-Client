@@ -1,13 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
-import { StableScrollView as ScrollView } from '@/components/stable-scroll-view';
-
-import { PrimaryButton } from '@/components/primary-button';
-import { TextField } from '@/components/text-field';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
+import { Text, View } from 'react-native';
+import { AuthScreen, AuthField, AuthButton, AuthError, authStyles } from '@/features/auth/auth-ui';
 import type { SocialProvider } from '@/features/auth/api';
 import { useAuthStore } from '@/features/auth/auth-store';
 import {
@@ -65,129 +59,66 @@ export default function LoginScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}>
-            <ThemedText type="title">푸릇푸릇</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              로그인하고 오늘의 학습을 시작하세요
-            </ThemedText>
-          </View>
-
-          {message ? (
-            <ThemedText type="small" style={styles.formError}>
-              {message}
-            </ThemedText>
-          ) : null}
-
-          <TextField
-            label="이메일"
-            value={email}
-            onChangeText={setEmail}
-            error={fields.email}
-            placeholder="student@example.com"
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            inputMode="email"
-            textContentType="emailAddress"
+    <AuthScreen
+      title="로그인"
+      footer={
+        <View style={authStyles.footer}>
+          <Text style={authStyles.footerText}>아직 계정이 없으신가요?</Text>
+          <Link href="/signup" replace style={authStyles.link}>
+            회원가입
+          </Link>
+        </View>
+      }
+    >
+      <AuthError message={message} />
+      <AuthField
+        label="이메일"
+        value={email}
+        onChangeText={setEmail}
+        error={fields.email}
+        placeholder="이메일을 입력해 주세요"
+        autoCapitalize="none"
+        autoComplete="email"
+        keyboardType="email-address"
+        inputMode="email"
+        textContentType="emailAddress"
+        editable={!busy}
+      />
+      <AuthField
+        label="비밀번호"
+        value={password}
+        onChangeText={setPassword}
+        error={fields.password}
+        placeholder="비밀번호를 입력해 주세요"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="current-password"
+        textContentType="password"
+        editable={!busy}
+        returnKeyType="go"
+        onSubmitEditing={canSubmit ? handleSubmit : undefined}
+      />
+      <AuthButton
+        label="로그인"
+        onPress={handleSubmit}
+        loading={submitting}
+        disabled={!canSubmit}
+      />
+      <Divider label="또는" />
+      <View style={authStyles.socials}>
+        {availableProviders().map((provider) => (
+          <SocialButton
+            key={provider}
+            provider={provider}
+            onPress={() => handleSocial(provider)}
+            loading={pendingProvider === provider}
+            disabled={busy && pendingProvider !== provider}
           />
-
-          <TextField
-            label="비밀번호"
-            value={password}
-            onChangeText={setPassword}
-            error={fields.password}
-            placeholder="비밀번호"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="current-password"
-            textContentType="password"
-            onSubmitEditing={canSubmit ? handleSubmit : undefined}
-          />
-
-          <PrimaryButton
-            label="로그인"
-            onPress={handleSubmit}
-            loading={submitting}
-            disabled={!canSubmit}
-          />
-
-          <Divider label="또는" />
-
-          <View style={styles.socials}>
-            {availableProviders().map((provider) => (
-              <SocialButton
-                key={provider}
-                provider={provider}
-                onPress={() => handleSocial(provider)}
-                loading={pendingProvider === provider}
-                disabled={busy && pendingProvider !== provider}
-              />
-            ))}
-          </View>
-
-          {/* 소셜은 첫 로그인이 곧 가입이다. 동의 절차 없이 계정이 생기므로
-              여기서 고지한다 — 국내 앱에서 통용되는 방식이고 심사에서도 확인한다 */}
-          <ThemedText type="small" themeColor="textSecondary" style={styles.consentNotice}>
-            소셜 로그인 시 이용약관 및 개인정보처리방침에 동의하는 것으로 봅니다
-          </ThemedText>
-
-          <View style={styles.footer}>
-            <ThemedText type="small" themeColor="textSecondary">
-              아직 계정이 없으신가요?
-            </ThemedText>
-            <Link href="/signup" replace>
-              <ThemedText type="smallBold" style={styles.link}>
-                회원가입
-              </ThemedText>
-            </Link>
-          </View>
-
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </ThemedView>
+        ))}
+      </View>
+      <Text style={authStyles.notice}>
+        소셜 로그인 시 이용약관 및 개인정보처리방침에 동의하는 것으로 봅니다
+      </Text>
+    </AuthScreen>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  content: {
-    padding: 24,
-    gap: 18,
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  header: {
-    gap: 6,
-    marginBottom: 8,
-  },
-  formError: {
-    color: Palette.danger,
-  },
-  socials: {
-    gap: 10,
-  },
-  consentNotice: {
-    textAlign: 'center',
-    lineHeight: 18,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  link: {
-    color: Palette.primary,
-  },
-});

@@ -128,7 +128,7 @@ function RootNavigator() {
         />
         <Stack.Screen name="study" options={{ animation: 'none', headerShown: false }} />
         <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-        <Stack.Screen name="(auth)/signup" options={{ title: '회원가입' }} />
+        <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
         <Stack.Screen
           name="onboarding"
           options={{ headerShown: false, headerBackVisible: false }}
