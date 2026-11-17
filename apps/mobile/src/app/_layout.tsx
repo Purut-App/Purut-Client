@@ -165,9 +165,9 @@ function RootNavigator() {
         <Stack.Screen name="listening/[examId]/index" options={{ headerShown: false }} />
         <Stack.Screen name="listening/[examId]/full" options={{ headerShown: false }} />
         <Stack.Screen name="listening/[examId]/[itemId]" options={{ headerShown: false }} />
-        <Stack.Screen name="wiki/index" options={{ title: 'Wiki' }} />
-        <Stack.Screen name="wiki/[chapterId]" options={{ title: '' }} />
-        <Stack.Screen name="wiki/favorites" options={{ title: '즐겨찾기' }} />
+        <Stack.Screen name="wiki/index" options={{ headerShown: false }} />
+        <Stack.Screen name="wiki/[chapterId]" options={{ headerShown: false }} />
+        <Stack.Screen name="wiki/favorites" options={{ headerShown: false }} />
       </Stack>
       <AppBottomNavigation />
     </View>

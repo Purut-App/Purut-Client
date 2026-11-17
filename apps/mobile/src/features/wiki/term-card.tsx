@@ -1,19 +1,11 @@
 import { SymbolView } from 'expo-symbols';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { LayoutAnimation, Pressable, StyleSheet, Text, View } from 'react-native';
+import { NumberFontFamily } from '@/constants/theme';
+import type { TermItem } from './api';
+import { WikiColors } from './wiki-ui';
 
-import { ThemedText } from '@/components/themed-text';
-import { Palette } from '@/constants/theme';
-import type { TermItem } from '@/features/wiki/api';
-import { useTheme } from '@/hooks/use-theme';
-
-/**
- * 용어 카드.
- *
- * 원문 교재의 한 항목이 카드 한 장이다. 읽는 순서를 그대로 따른다 —
- * 이름 → 쉬운 설명 → 예시 → 예문 → 뜻.
- *
- * 검색·즐겨찾기 화면에서는 이 용어가 몇 장에 있는지 알아야 해서 출처를 함께 보여준다.
- */
+/** The same term layout is used in chapters, search results, and favorites. */
 export function TermCard({
   term,
   favorite,
@@ -25,112 +17,146 @@ export function TermCard({
   onToggleFavorite: () => void;
   showChapter?: boolean;
 }) {
-  const theme = useTheme();
-
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = term.usages.length > 0 || term.examples.length > 0 || term.meanings.length > 0;
+  function toggle() {
+    if (!hasDetails) return;
+    LayoutAnimation.configureNext(
+      LayoutAnimation.create(
+        220,
+        LayoutAnimation.Types.easeInEaseOut,
+        LayoutAnimation.Properties.opacity,
+      ),
+    );
+    setExpanded((current) => !current);
+  }
   return (
-    <View
-      style={[
-        styles.card,
-        { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-      ]}>
-      <View style={styles.header}>
-        <View style={styles.titleArea}>
-          <ThemedText type="smallBold" style={styles.name}>
-            {term.name}
-          </ThemedText>
-          {term.nameEn ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              {term.nameEn}
-            </ThemedText>
+    <Pressable
+      accessibilityRole={hasDetails ? 'button' : undefined}
+      accessibilityState={hasDetails ? { expanded } : undefined}
+      onPress={toggle}
+      style={({ pressed }) => [styles.card, expanded && styles.expanded, pressed && styles.pressed]}
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={favorite ? `${term.name} 즐겨찾기 해제` : `${term.name} 즐겨찾기 추가`}
+        accessibilityState={{ selected: favorite }}
+        onPress={(event) => {
+          event.stopPropagation();
+          onToggleFavorite();
+        }}
+        style={[styles.favorite, favorite && styles.favoriteSelected]}
+        hitSlop={8}
+      >
+        <SymbolView
+          name={{ ios: favorite ? 'star.fill' : 'star', android: 'star', web: 'star' }}
+          size={21}
+          tintColor={favorite ? WikiColors.green : '#8B9683'}
+          weight={{
+            ios: 'regular',
+            android: { name: favorite ? 'filled' : 'outlined', font: 400 },
+          }}
+        />
+      </Pressable>
+      <View style={styles.titleArea}>
+        {showChapter ? (
+          <Text style={styles.chapter}>
+            <Text style={styles.chapterNumber}>{term.chapterNo}</Text>장 · {term.chapterTitle}
+          </Text>
+        ) : null}
+        <Text style={styles.name}>{term.name}</Text>
+        {term.nameEn ? <Text style={styles.nameEn}>{term.nameEn}</Text> : null}
+      </View>
+      <Text style={styles.description}>{term.description}</Text>
+      {hasDetails && expanded ? (
+        <View style={styles.exampleSection}>
+          <View style={styles.exampleDivider} />
+          {term.usages.length > 0 ? (
+            <>
+              <Text style={styles.exampleLabel}>용례</Text>
+              {term.usages.map((usage, index) => (
+                <Text key={index} style={styles.example}>
+                  {usage}
+                </Text>
+              ))}
+            </>
+          ) : null}
+          {Math.max(term.examples.length, term.meanings.length) > 0 ? (
+            <>
+              <Text style={styles.exampleLabel}>예문</Text>
+              {Array.from(
+                { length: Math.max(term.examples.length, term.meanings.length) },
+                (_, index) => (
+                  <View key={index} style={styles.examplePair}>
+                    {term.examples[index] ? (
+                      <Text style={styles.example}>{term.examples[index]}</Text>
+                    ) : null}
+                    {term.meanings[index] ? (
+                      <Text style={styles.exampleTranslation}>{term.meanings[index]}</Text>
+                    ) : null}
+                  </View>
+                ),
+              )}
+            </>
           ) : null}
         </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={favorite ? '즐겨찾기 해제' : '즐겨찾기'}
-          accessibilityState={{ selected: favorite }}
-          onPress={onToggleFavorite}
-          hitSlop={10}>
-          <SymbolView
-            name={{ ios: favorite ? 'star.fill' : 'star', android: 'star', web: 'star' }}
-            size={20}
-            tintColor={favorite ? Palette.warning : theme.textSecondary}
-            weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-          />
-        </Pressable>
-      </View>
-
-      {showChapter ? (
-        <ThemedText type="small" style={styles.chapter}>
-          {term.chapterNo}. {term.chapterTitle}
-        </ThemedText>
       ) : null}
-
-      <ThemedText type="small" style={styles.description}>
-        {term.description}
-      </ThemedText>
-
-      {term.usages.length > 0 ? (
-        <View style={[styles.usages, { backgroundColor: theme.background }]}>
-          {term.usages.map((usage, i) => (
-            <ThemedText key={i} type="small" themeColor="textSecondary">
-              {usage}
-            </ThemedText>
-          ))}
+      {hasDetails ? (
+        <View style={styles.expandIndicator}>
+          <SymbolView
+            name={
+              expanded
+                ? { ios: 'chevron.up', android: 'expand_less', web: 'expand_less' }
+                : { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }
+            }
+            size={14}
+            tintColor="#8B9683"
+          />
         </View>
       ) : null}
-
-      {/* 예문과 해석은 짝이다. 비교 예문이 있는 용어는 두 쌍이 온다 */}
-      <View style={styles.examples}>
-        {term.examples.map((example, i) => (
-          <View key={i} style={styles.exampleRow}>
-            <ThemedText type="small" style={styles.example}>
-              {example}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {term.meanings[i] ?? ''}
-            </ThemedText>
-          </View>
-        ))}
-      </View>
-    </View>
+    </Pressable>
   );
 }
-
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 16,
-    padding: 16,
-    gap: 8,
-    borderWidth: 1,
-    shadowColor: Palette.shadow,
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
-    elevation: 2,
+    position: 'relative',
+    minHeight: 138,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 12,
+  expanded: { borderColor: WikiColors.border },
+  pressed: { opacity: 0.8 },
+  titleArea: { gap: 6, paddingRight: 42 },
+  chapter: { color: WikiColors.green, fontSize: 12, lineHeight: 19 },
+  chapterNumber: { fontFamily: NumberFontFamily },
+  name: {
+    color: WikiColors.ink,
+    fontSize: 22,
+    lineHeight: 30,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
-  titleArea: { flex: 1, gap: 2 },
-  name: { fontSize: 16 },
-  chapter: { color: Palette.primary },
-  description: { lineHeight: 21 },
-  usages: {
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 2,
+  nameEn: { color: WikiColors.muted, fontSize: 15, lineHeight: 22, fontWeight: '500' },
+  favorite: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
   },
-  examples: { gap: 8, marginTop: 2 },
-  exampleRow: {
-    gap: 2,
-    borderLeftWidth: 3,
-    borderLeftColor: Palette.primarySoft,
-    paddingLeft: 10,
-  },
-  example: { fontWeight: '600' },
+  favoriteSelected: { backgroundColor: '#EDF4E7' },
+  description: { color: '#586153', fontSize: 16, lineHeight: 26, marginTop: 10 },
+  exampleSection: { gap: 9, paddingTop: 18 },
+  exampleDivider: { height: StyleSheet.hairlineWidth, backgroundColor: '#DDE7D6', marginBottom: 4 },
+  exampleLabel: { color: '#527C42', fontSize: 11, lineHeight: 17, fontWeight: '600' },
+  example: { color: WikiColors.ink, fontSize: 14, lineHeight: 22 },
+  exampleTranslation: { color: '#737D6C', fontSize: 13, lineHeight: 21 },
+  examplePair: { gap: 9 },
+  expandIndicator: { alignItems: 'flex-end', marginTop: 10 },
 });

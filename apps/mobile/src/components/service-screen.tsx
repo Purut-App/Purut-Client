@@ -13,11 +13,13 @@ export function ServiceScreen({
   children,
   back = true,
   keyboard = false,
+  titleAccessory,
 }: {
   title: string;
   children: ReactNode;
   back?: boolean;
   keyboard?: boolean;
+  titleAccessory?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const router = useRouter();
@@ -38,7 +40,10 @@ export function ServiceScreen({
           },
         ]}
       >
-        <Text style={styles.title}>{title}</Text>
+        <View style={styles.heading}>
+          <Text style={styles.title}>{title}</Text>
+          {titleAccessory}
+        </View>
         {children}
       </StableScrollView>
       {back ? (
@@ -70,7 +75,9 @@ export function ServiceScreen({
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#E3F2DE' },
   content: { paddingHorizontal: 18, gap: 18 },
+  heading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
   title: {
+    flex: 1,
     color: '#1A1F2C',
     fontSize: 30,
     lineHeight: 40,

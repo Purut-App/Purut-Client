@@ -1,4 +1,4 @@
-import { type Href, useRouter, useSegments } from 'expo-router';
+import { type Href, usePathname, useRouter, useSegments } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -14,6 +14,7 @@ export const APP_BOTTOM_NAV_CONTENT_OFFSET =
 /** Logged-in service screens share one fixed, floating bottom navigation. */
 export function AppBottomNavigation() {
   const router = useRouter();
+  const pathname = usePathname();
   const segments: readonly string[] = useSegments();
   const tokens = useAuthStore((state) => state.tokens);
   const topRoute = String(segments[0]);
@@ -25,11 +26,10 @@ export function AppBottomNavigation() {
 
   if (!tokens || isTransientFlow || isListeningPlayer) return null;
 
-  const homeActive = topRoute === 'index';
-  const currentTab = getCurrentTab(topRoute, homeActive);
+  const homeActive = pathname === '/';
 
-  function navigateToTab(target: ReturnType<typeof getCurrentTab>, href: Href) {
-    if (target === currentTab) return;
+  function navigateToTab(href: Href) {
+    if (pathname === href) return;
 
     router.replace(href);
   }
@@ -41,39 +41,29 @@ export function AppBottomNavigation() {
           label="홈"
           active={homeActive}
           symbol={{ ios: 'house.fill', android: 'home', web: 'home' }}
-          onPress={() =>
-            navigateToTab('home', '/')
-          }
+          onPress={() => navigateToTab('/')}
         />
         <NavItem
           label="공부"
-          active={topRoute === 'study'}
+          active={pathname === '/study'}
           symbol={{ ios: 'book.closed.fill', android: 'menu_book', web: 'menu_book' }}
-          onPress={() => navigateToTab('study', '/study')}
+          onPress={() => navigateToTab('/study')}
         />
         <NavItem
           label="캘린더"
-          active={topRoute === 'calendar'}
+          active={pathname === '/calendar'}
           symbol={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
-          onPress={() => navigateToTab('calendar', '/calendar')}
+          onPress={() => navigateToTab('/calendar')}
         />
         <NavItem
           label="마이페이지"
-          active={topRoute === 'mypage'}
+          active={pathname === '/mypage'}
           symbol={{ ios: 'person.fill', android: 'person', web: 'person' }}
-          onPress={() => navigateToTab('mypage', '/mypage')}
+          onPress={() => navigateToTab('/mypage')}
         />
       </View>
     </View>
   );
-}
-
-function getCurrentTab(topRoute: string, homeActive: boolean) {
-  if (homeActive) return 'home';
-  if (topRoute === 'study') return 'study';
-  if (topRoute === 'calendar') return 'calendar';
-  if (topRoute === 'mypage') return 'mypage';
-  return 'home';
 }
 
 function NavItem({
@@ -135,7 +125,7 @@ const styles = StyleSheet.create({
   },
   tab: {
     flex: 1,
-    height: 44,
+    height: '100%',
     alignItems: 'center',
     justifyContent: 'center',
   },

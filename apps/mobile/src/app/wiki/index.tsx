@@ -1,248 +1,224 @@
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
 import { useState } from 'react';
-import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-} from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ServiceScreen } from '@/components/service-screen';
+import { NumberFontFamily, DropdownSurface } from '@/constants/theme';
 import type { ChapterSummary } from '@/features/wiki/api';
 import { TermCard } from '@/features/wiki/term-card';
 import { useFavorites } from '@/features/wiki/use-favorites';
 import { useChapters, useSearch } from '@/features/wiki/use-wiki';
-import { useTheme } from '@/hooks/use-theme';
+import {
+  FavoritesLink,
+  WikiColors,
+  WikiCount,
+  WikiState,
+  wikiStyles,
+} from '@/features/wiki/wiki-ui';
 
-/**
- * 문법 위키 목차.
- *
- * 검색어를 넣으면 목차 대신 결과를 보여준다. 화면을 따로 두면 뒤로가기가 한 단계
- * 늘어나는데, 찾다가 다시 훑는 흐름이 잦아서 한 화면에서 전환한다.
- */
 export default function WikiHomeScreen() {
-  const theme = useTheme();
   const router = useRouter();
-
   const [keyword, setKeyword] = useState('');
-  const { data: chapters, isPending, error } = useChapters();
-  const { data: results, isFetching: searching } = useSearch(keyword);
+  const [focused, setFocused] = useState(false);
+  const chapters = useChapters();
+  const search = useSearch(keyword);
   const favorites = useFavorites();
-
   const searchMode = keyword.trim().length >= 2;
+  const totalTerms = chapters.data?.reduce((total, chapter) => total + chapter.termCount, 0);
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={styles.toolbar}>
-        <View
-          style={[
-            styles.searchBox,
-            { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-          ]}>
-          <SymbolView
-            name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
-            size={16}
-            tintColor={theme.textSecondary}
-            weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-          />
-          <TextInput
-            value={keyword}
-            onChangeText={setKeyword}
-            placeholder="용어 검색"
-            placeholderTextColor={theme.textSecondary}
-            style={[styles.input, { color: theme.text }]}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
-        </View>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="즐겨찾기"
-          onPress={() => router.push('/wiki/favorites')}
-          style={[
-            styles.starButton,
-            { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-          ]}>
-          <SymbolView
-            name={{ ios: 'star.fill', android: 'star', web: 'star' }}
-            size={18}
-            tintColor={Palette.warning}
-            weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-          />
-        </Pressable>
-      </View>
-
-      {searchMode ? (
-        <SearchResults
-          loading={searching}
-          results={results ?? []}
-          favorites={favorites}
-          keyword={keyword.trim()}
+    <ServiceScreen
+      title="Wiki"
+      titleAccessory={<FavoritesLink onPress={() => router.push('/wiki/favorites')} />}
+    >
+      <View style={[styles.searchBox, focused && styles.searchFocused]}>
+        <SymbolView
+          name={{ ios: 'magnifyingglass', android: 'search', web: 'search' }}
+          size={20}
+          tintColor={WikiColors.green}
         />
-      ) : isPending ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
+        <TextInput
+          value={keyword}
+          onChangeText={setKeyword}
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
+          placeholder="궁금한 용어 검색"
+          placeholderTextColor={WikiColors.muted}
+          style={styles.input}
+          accessibilityLabel="위키 용어 검색"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {keyword ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="검색어 지우기"
+            onPress={() => setKeyword('')}
+            hitSlop={8}
+          >
+            <SymbolView
+              name={{ ios: 'xmark.circle.fill', android: 'cancel', web: 'cancel' }}
+              size={20}
+              tintColor={WikiColors.muted}
+            />
+          </Pressable>
+        ) : null}
+      </View>
+      {!searchMode && keyword.trim().length === 1 ? (
+        <Text style={styles.searchHint}>두 글자 이상 입력해 주세요</Text>
+      ) : null}
+      {!searchMode && chapters.data ? (
+        <View style={styles.overview}>
+          <View style={styles.metric}>
+            <Text style={styles.metricValue}>{chapters.data.length}</Text>
+            <Text style={styles.metricLabel}>전체 장</Text>
+          </View>
+          <View style={styles.metricDivider} />
+          <View style={styles.metric}>
+            <Text style={styles.metricValue}>{totalTerms}</Text>
+            <Text style={styles.metricLabel}>문법 용어</Text>
+          </View>
         </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {error.message}
-          </ThemedText>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.list}>
-          {chapters?.map((chapter) => (
-            <ChapterRow
+      ) : null}
+      <View style={wikiStyles.sectionHeading}>
+        <Text style={wikiStyles.sectionTitle}>{searchMode ? '검색 결과' : '목차'}</Text>
+        {(searchMode ? search.data : chapters.data) ? (
+          <WikiCount
+            count={(searchMode ? search.data : chapters.data)?.length ?? 0}
+            label={searchMode ? '개 용어' : '장'}
+          />
+        ) : null}
+      </View>
+      <View style={wikiStyles.list}>
+        {searchMode ? (
+          search.isPending ? (
+            <WikiState loading />
+          ) : search.isError ? (
+            <WikiState
+              title="검색 결과를 불러오지 못했어요"
+              onRetry={() => void search.refetch()}
+            />
+          ) : !search.data?.length ? (
+            <WikiState title="검색 결과가 없어요" detail="다른 용어로 검색해 보세요" />
+          ) : (
+            search.data.map((term) => (
+              <TermCard
+                key={term.id}
+                term={term}
+                favorite={favorites.has(term.id)}
+                onToggleFavorite={() => void favorites.toggle(term.id)}
+                showChapter
+              />
+            ))
+          )
+        ) : chapters.isPending ? (
+          <WikiState loading />
+        ) : chapters.isError ? (
+          <WikiState title="목차를 불러오지 못했어요" onRetry={() => void chapters.refetch()} />
+        ) : !chapters.data?.length ? (
+          <WikiState title="등록된 문법이 없어요" />
+        ) : (
+          chapters.data.map((chapter) => (
+            <ChapterCard
               key={chapter.id}
               chapter={chapter}
               onPress={() => router.push(`/wiki/${chapter.id}`)}
             />
-          ))}
-        </ScrollView>
-      )}
-    </ThemedView>
+          ))
+        )}
+      </View>
+    </ServiceScreen>
   );
 }
 
-function ChapterRow({ chapter, onPress }: { chapter: ChapterSummary; onPress: () => void }) {
-  const theme = useTheme();
-
+function ChapterCard({ chapter, onPress }: { chapter: ChapterSummary; onPress: () => void }) {
   return (
     <Pressable
       accessibilityRole="button"
+      accessibilityLabel={`${chapter.chapterNo}장 ${chapter.title}, 용어 ${chapter.termCount}개`}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.row,
-        {
-          backgroundColor: theme.backgroundElement,
-          borderColor: theme.backgroundSelected,
-          opacity: pressed ? 0.82 : 1,
-        },
-      ]}>
-      <View style={[styles.badge, { backgroundColor: Palette.primarySoft }]}>
-        <ThemedText type="smallBold" style={styles.badgeText}>
-          {chapter.chapterNo}
-        </ThemedText>
+      style={({ pressed }) => [styles.chapterCard, pressed && styles.chapterPressed]}
+    >
+      <View style={styles.chapterTop}>
+        <Text style={styles.chapterNumber}>{chapter.chapterNo}</Text>
+        <SymbolView
+          name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+          size={17}
+          tintColor="#8B9683"
+        />
       </View>
-
-      <View style={styles.rowBody}>
-        <ThemedText type="smallBold">{chapter.title}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {chapter.termCount}개 용어
-        </ThemedText>
+      <View style={styles.chapterTitleRow}>
+        <Text style={styles.chapterTitle}>{chapter.title}</Text>
+        <View style={styles.termChip}>
+          <WikiCount count={chapter.termCount} label="개 용어" />
+        </View>
       </View>
-
-      <SymbolView
-        name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
-        size={14}
-        tintColor={theme.textSecondary}
-        weight={{ ios: 'semibold', android: { name: 'outlined', font: 500 } }}
-      />
     </Pressable>
   );
 }
-
-function SearchResults({
-  loading,
-  results,
-  favorites,
-  keyword,
-}: {
-  loading: boolean;
-  results: import('@/features/wiki/api').TermItem[];
-  favorites: ReturnType<typeof useFavorites>;
-  keyword: string;
-}) {
-  if (loading && results.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-      </View>
-    );
-  }
-
-  if (results.length === 0) {
-    return (
-      <View style={styles.center}>
-        <ThemedText type="small" themeColor="textSecondary">
-          &lsquo;{keyword}&rsquo; 검색 결과가 없어요
-        </ThemedText>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView contentContainerStyle={styles.list} keyboardShouldPersistTaps="handled">
-      <ThemedText type="small" themeColor="textSecondary">
-        {results.length}개 용어
-      </ThemedText>
-      {results.map((term) => (
-        <TermCard
-          key={term.id}
-          term={term}
-          favorite={favorites.has(term.id)}
-          onToggleFavorite={() => favorites.toggle(term.id)}
-          showChapter
-        />
-      ))}
-    </ScrollView>
-  );
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  toolbar: {
+  searchBox: {
+    minHeight: 56,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+    paddingHorizontal: 18,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 8,
   },
-  searchBox: {
-    flex: 1,
+  searchFocused: { ...DropdownSurface },
+  input: { flex: 1, minHeight: 52, fontSize: 16, color: WikiColors.ink, paddingVertical: 12 },
+  searchHint: { color: WikiColors.muted, fontSize: 13, paddingHorizontal: 8 },
+  overview: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    padding: 24,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    height: 42,
-    paddingHorizontal: 14,
-    borderRadius: 21,
-    borderWidth: 1,
+    gap: 24,
   },
-  input: { flex: 1, fontSize: 15, padding: 0 },
-  starButton: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24 },
-  list: { padding: 20, paddingTop: 6, gap: 10 },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  metric: { flex: 1, gap: 8 },
+  metricValue: { color: WikiColors.ink, fontSize: 36, fontFamily: NumberFontFamily },
+  metricLabel: { color: WikiColors.muted, fontSize: 14 },
+  metricDivider: { width: 1, alignSelf: 'stretch', backgroundColor: '#EDF2E8' },
+  chapterCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 30,
+    padding: 22,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
     gap: 12,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
   },
-  badge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+  chapterPressed: { borderColor: WikiColors.border, backgroundColor: '#FAFCF7' },
+  chapterTop: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
   },
-  badgeText: { color: Palette.primaryDark },
-  rowBody: { flex: 1, gap: 2 },
+  chapterNumber: {
+    color: WikiColors.ink,
+    fontFamily: NumberFontFamily,
+    fontSize: 38,
+    lineHeight: 44,
+  },
+  chapterTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  chapterTitle: {
+    flex: 1,
+    color: WikiColors.ink,
+    fontSize: 21,
+    lineHeight: 30,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+  },
+  termChip: {
+    backgroundColor: WikiColors.soft,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexShrink: 0,
+  },
 });
