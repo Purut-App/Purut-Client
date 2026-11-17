@@ -14,7 +14,7 @@ export const APP_BOTTOM_NAV_CONTENT_OFFSET =
 /** Logged-in service screens share one fixed, floating bottom navigation. */
 export function AppBottomNavigation() {
   const router = useRouter();
-  const segments = useSegments();
+  const segments: readonly string[] = useSegments();
   const tokens = useAuthStore((state) => state.tokens);
   const topRoute = String(segments[0]);
   const isTransientFlow = topRoute === '(auth)' || topRoute === 'onboarding' || topRoute === 'quiz';

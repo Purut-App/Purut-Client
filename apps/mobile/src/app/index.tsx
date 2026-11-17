@@ -50,7 +50,7 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>오늘의 학습</Text>
             </View>
             <View style={styles.totalRow}>
-              <Text style={styles.totalValue}>—</Text>
+              <Text style={styles.totalValue}>0</Text>
               <Text style={styles.totalUnit}>분</Text>
             </View>
             <View style={styles.sessionRow}>
@@ -59,7 +59,7 @@ export default function HomeScreen() {
                   <Text style={styles.sessionLabel}>{label}</Text>
                   <View style={styles.progressTrack} />
                   <Text style={styles.sessionValue}>
-                    <Text style={styles.sessionNumber}>—</Text>분
+                    <Text style={styles.sessionNumber}>0</Text>분
                   </Text>
                 </View>
               ))}
@@ -83,10 +83,10 @@ export default function HomeScreen() {
               <Text style={styles.sectionTitle}>이번 주 학습</Text>
               <Text style={styles.periodLabel}>월 ~ 일</Text>
             </View>
-            <View style={styles.studyChart} accessible accessibilityLabel="주간 학습 시간 데이터 없음">
+            <View style={styles.studyChart} accessible accessibilityLabel="주간 학습 시간 0분">
               {['월', '화', '수', '목', '금', '토', '일'].map((day) => (
                 <View key={day} style={styles.chartColumn}>
-                  <Text style={styles.chartValue}>—</Text>
+                  <Text style={styles.chartValue}>0</Text>
                   <View style={styles.barTrack}>
                     <View style={[styles.bar, { height: 3 }]} />
                   </View>
@@ -112,7 +112,7 @@ function EmptyStat({ label, unit }: { label: string; unit: string }) {
   return (
     <View style={styles.stat}>
       <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>—<Text style={styles.statUnit}> {unit}</Text></Text>
+      <Text style={styles.statValue}>0<Text style={styles.statUnit}> {unit}</Text></Text>
     </View>
   );
 }
