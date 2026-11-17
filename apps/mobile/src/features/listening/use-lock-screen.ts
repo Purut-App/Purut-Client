@@ -1,5 +1,5 @@
 import type { AudioPlayer } from 'expo-audio';
-import { useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 
 /**
  * 잠금화면·제어센터 재생 컨트롤을 붙인다.
@@ -15,7 +15,9 @@ export function useLockScreenControls(
   const title = metadata?.title;
   const artist = metadata?.artist;
 
-  useEffect(() => {
+  // useAudioPlayer releases its native object in a passive-effect cleanup.
+  // Clear controls in layout cleanup, before that release on unmount/source changes.
+  useLayoutEffect(() => {
     if (!title) return;
 
     player.setActiveForLockScreen(true, { title, artist });

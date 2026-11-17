@@ -32,7 +32,8 @@ export function FilterChip({
           backgroundColor: active ? Palette.primary : theme.backgroundElement,
           borderColor: active ? Palette.primary : theme.backgroundSelected,
         },
-      ]}>
+      ]}
+    >
       <ThemedText type="small" style={active ? styles.chipTextActive : undefined}>
         {label}
       </ThemedText>
@@ -55,7 +56,8 @@ export function FilterChipRow({
       // flexGrow 를 막지 않으면 가로 스크롤뷰가 세로 공간을 차지하고,
       // contentContainer 기본값(stretch)이 칩을 그 높이만큼 늘려버린다
       style={styles.scroll}
-      contentContainerStyle={[styles.row, style]}>
+      contentContainerStyle={[styles.row, style]}
+    >
       {children}
     </ScrollView>
   );

@@ -26,6 +26,8 @@ export const Colors = {
 
 export type ThemeColor = keyof typeof Colors.light & keyof typeof Colors.dark;
 
+export const NumberFontFamily = 'BricolageGrotesque-ExtraBold';
+
 export const Fonts = Platform.select({
   ios: {
     /** iOS `UIFontDescriptorSystemDesignDefault` */
@@ -76,4 +78,15 @@ export const Palette = {
 } as const;
 
 export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+export const LearningResultColors = {
+  correct: { text: '#446F37', accent: '#56AD62', soft: '#E3F2DE' },
+  incorrect: { text: '#C93F4B', accent: '#E45B65', soft: '#FDE8EB' },
+} as const;
 export const MaxContentWidth = 800;
+
+/** Shared surface for an expanded dropdown trigger and its option panel. */
+export const DropdownSurface = {
+  backgroundColor: '#FFFFFF',
+  borderColor: '#A7BE99',
+  borderWidth: 1.5,
+} as const;

@@ -1,6 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { StableScrollView as ScrollView } from '@/components/stable-scroll-view';
 
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
@@ -47,7 +48,8 @@ export default function SignUpScreen() {
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <ThemedText type="title">회원가입</ThemedText>
@@ -102,7 +104,8 @@ export default function SignUpScreen() {
             style={[
               styles.consent,
               { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-            ]}>
+            ]}
+          >
             <ThemedText type="small" themeColor="textSecondary">
               수집 항목: 이름, 이메일 · 목적: 학습 기록 관리 및 본인 확인
             </ThemedText>
@@ -112,7 +115,8 @@ export default function SignUpScreen() {
             accessibilityRole="checkbox"
             accessibilityState={{ checked: agreed }}
             onPress={() => setAgreed((prev) => !prev)}
-            style={styles.agreeRow}>
+            style={styles.agreeRow}
+          >
             <View
               style={[
                 styles.checkbox,
@@ -120,7 +124,8 @@ export default function SignUpScreen() {
                   borderColor: agreed ? Palette.primary : theme.textSecondary,
                   backgroundColor: agreed ? Palette.primary : 'transparent',
                 },
-              ]}>
+              ]}
+            >
               {agreed ? <ThemedText style={styles.check}>✓</ThemedText> : null}
             </View>
             <ThemedText type="small">

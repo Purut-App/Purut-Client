@@ -1,388 +1,302 @@
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { Stack, useLocalSearchParams } from 'expo-router';
-import { SymbolView, type SymbolViewProps } from 'expo-symbols';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import {
-  ActivityIndicator,
-  type LayoutChangeEvent,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  View,
-} from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Palette } from '@/constants/theme';
-import { usePlaylist } from '@/features/listening/use-listening';
+import { PlaybackSpeedMenu } from '@/features/listening/playback-speed-menu';
+import { PlaybackControls } from '@/features/listening/playback-controls';
+import {
+  PlaybackHeader,
+  PlaybackListSheet,
+  type PlaybackMenuAnchor,
+} from '@/features/listening/playback-chrome';
+import { PlaybackTranscript } from '@/features/listening/playback-transcript';
+import { useItem, usePlaylist } from '@/features/listening/use-listening';
+import { localUri, readOfflineExam, type OfflineExam } from '@/features/listening/offline-store';
+import { playlistFromOffline } from '@/features/listening/offline-playlist';
+import { enqueueProgress } from '@/features/listening/progress-queue';
 import { useLockScreenControls } from '@/features/listening/use-lock-screen';
-import { useTheme } from '@/hooks/use-theme';
+import { useLearningSettings } from '@/features/settings/use-learning-settings';
 
-const SPEEDS = [0.75, 1, 1.25];
-const MIN_TOUCH = 44;
-const SEEK_BAR_HIT_SLOP = { top: 14, bottom: 14, left: 8, right: 8 };
-
-/**
- * 전체 듣기.
- *
- * 안내 방송부터 마지막 문항까지 끊지 않고 이어 재생한다. 실전 감각을 위한 화면이라
- * 대본은 일부러 보여주지 않는다 — 보면서 들으려면 문항 화면으로 들어가면 된다.
- */
-export default function ListeningFullPlayScreen() {
-  const { examId } = useLocalSearchParams<{ examId: string }>();
-  const theme = useTheme();
-
-  const { data, isPending, error } = usePlaylist(examId);
+/** One continuous player, with an optional transcript for the current question. */
+export default function ListeningPlayerScreen() {
+  const {
+    examId,
+    itemId: initialItemId,
+    script,
+  } = useLocalSearchParams<{ examId: string; itemId?: string; script?: string }>();
+  const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const [listAnchor, setListAnchor] = useState<PlaybackMenuAnchor | null>(null);
+  const [speedMenuOpen, setSpeedMenuOpen] = useState(false);
+  const [scriptOpen, setScriptOpen] = useState(script === '1');
+  const [selectedId, setSelectedId] = useState<string | null>(initialItemId ?? null);
+  const [offline, setOffline] = useState<OfflineExam | null>(null);
+  const [offlineLoaded, setOfflineLoaded] = useState(false);
+  const { data: remote, isPending, error } = usePlaylist(examId);
+  useEffect(() => {
+    let alive = true;
+    readOfflineExam(examId)
+      .then((saved) => {
+        if (alive) setOffline(saved);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (alive) setOfflineLoaded(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [examId]);
+  const localPlaylist = useMemo(
+    () => (offline ? playlistFromOffline(offline, (name) => localUri(examId, name)) : null),
+    [offline, examId],
+  );
+  const data = localPlaylist ?? remote;
   const tracks = useMemo(() => data?.tracks ?? [], [data]);
-
-  const [index, setIndex] = useState(0);
-  const [speed, setSpeed] = useState(1);
-  const [scrubMs, setScrubMs] = useState<number | null>(null);
-  const [finished, setFinished] = useState(false);
-
+  const found = tracks.findIndex((track) => (track.itemId ?? 'intro') === selectedId);
+  const index = found >= 0 ? found : 0;
   const current = tracks[index];
-  const player = useAudioPlayer(current ? { uri: current.audioUrl } : null);
+  const {
+    data: item,
+    isPending: itemPending,
+    error: itemError,
+    refetch: refetchItem,
+  } = useItem(current?.itemId ?? '');
+  const localItem = offline?.complete
+    ? offline.items.find((entry) => entry.id === current?.itemId)
+    : undefined;
+  const detail = localItem ?? item;
+  const { settings, loaded: settingsLoaded } = useLearningSettings();
+  const [speed, setSpeed] = useState(1);
+  const [showTranslation, setShowTranslation] = useState(true);
+  const settingsApplied = useRef(false);
+  useEffect(() => {
+    if (!settingsLoaded || settingsApplied.current) return;
+    settingsApplied.current = true;
+    setSpeed(settings.playbackRate);
+    setShowTranslation(settings.showTranslation);
+  }, [settingsLoaded, settings]);
+  const [finished, setFinished] = useState(false);
+  const player = useAudioPlayer(offlineLoaded && current ? { uri: current.audioUrl } : null);
   const status = useAudioPlayerStatus(player);
-
   useLockScreenControls(
     player,
     current && data ? { title: current.label, artist: data.examLabel } : null,
   );
-
   const positionMs = Math.round((status.currentTime ?? 0) * 1000);
   const durationMs = Math.round((status.duration ?? 0) * 1000) || (current?.durationMs ?? 0);
 
-  // 트랙이 끝나면 다음으로 넘어간다. 이게 전체 듣기의 핵심이다.
-  // 상태를 이펙트 본문이 아니라 이벤트 콜백에서 바꾼다 — 재생 종료는 외부 이벤트다
+  const savedAt = useRef(0);
+  const latest = useRef({ itemId: current?.itemId, positionMs, durationMs });
+  // Capture the old track before switching players or leaving the screen.
+  useLayoutEffect(() => {
+    latest.current = { itemId: current?.itemId, positionMs, durationMs };
+  }, [current?.itemId, positionMs, durationMs]);
+  useLayoutEffect(() => {
+    savedAt.current = 0;
+    const id = current?.itemId;
+    return () => {
+      const value = latest.current;
+      if (id && value.itemId === id && value.positionMs > 0)
+        enqueueProgress(id, {
+          lastPositionMs: value.positionMs,
+          completed: value.durationMs > 0 && value.positionMs / value.durationMs > 0.9,
+        });
+    };
+  }, [current?.itemId]);
   useEffect(() => {
-    const sub = player.addListener('playbackStatusUpdate', (s) => {
-      if (!s.didJustFinish) return;
-      setIndex((prev) => (prev < tracks.length - 1 ? prev + 1 : prev));
-      setFinished((prev) => (index >= tracks.length - 1 ? true : prev));
+    if (!status.playing || !current?.itemId || positionMs - savedAt.current < 10000) return;
+    savedAt.current = positionMs;
+    enqueueProgress(current.itemId, {
+      lastPositionMs: positionMs,
+      completed: durationMs > 0 && positionMs / durationMs > 0.9,
+    });
+  }, [positionMs, durationMs, status.playing, current?.itemId]);
+
+  const startedPlayer = useRef<typeof player | null>(null);
+  useEffect(() => {
+    if (!status.isLoaded || startedPlayer.current === player || !settingsLoaded) return;
+    if (current?.itemId && !detail && itemPending) return;
+    startedPlayer.current = player;
+    player.setPlaybackRate(speed, 'high');
+    const resumeMs = item?.id === current?.itemId ? item.lastPositionMs : 0;
+    if (resumeMs > 0) void player.seekTo(resumeMs / 1000);
+    player.play();
+  }, [player, status.isLoaded, settingsLoaded, detail, itemPending, item, current?.itemId, speed]);
+  useEffect(() => {
+    const sub = player.addListener('playbackStatusUpdate', (next) => {
+      if (!next.didJustFinish) return;
+      if (current?.itemId)
+        enqueueProgress(current.itemId, {
+          lastPositionMs: Math.round(next.currentTime * 1000),
+          completed: true,
+        });
+      const following = tracks[index + 1];
+      if (following) setSelectedId(following.itemId ?? 'intro');
+      else setFinished(true);
     });
     return () => sub.remove();
-  }, [player, index, tracks.length]);
-
-  // 트랙이 바뀌면 이어서 재생한다. 마지막까지 듣고 멈춘 뒤에는 자동 재생하지 않는다
-  useEffect(() => {
-    if (!status.isLoaded || finished) return;
-    player.setPlaybackRate(speed, 'high');
-    player.play();
-    // 트랙 전환 시점에만 돈다
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, status.isLoaded]);
-
-  const goTo = useCallback(
-    (next: number) => {
-      if (next < 0 || next >= tracks.length) return;
-      setFinished(false);
-      setScrubMs(null);
-      setIndex(next);
-    },
-    [tracks.length],
-  );
-
-  const handleSeek = useCallback(
+  }, [player, current?.itemId, tracks, index]);
+  const goTo = (next: number) => {
+    if (next < 0 || next >= tracks.length) return;
+    setFinished(false);
+    setSelectedId(tracks[next].itemId ?? 'intro');
+  };
+  const seek = useCallback(
     (ms: number) => {
-      player.seekTo(ms / 1000);
-      setScrubMs(null);
+      void player.seekTo(ms / 1000);
     },
     [player],
   );
-
-  function changeSpeed() {
-    const next = SPEEDS[(SPEEDS.indexOf(speed) + 1) % SPEEDS.length];
+  const selectSpeed = (next: number) => {
     setSpeed(next);
     player.setPlaybackRate(next, 'high');
-  }
-
-  if (isPending) {
-    return (
-      <ThemedView style={styles.center}>
-        <Stack.Screen options={{ title: '전체 듣기' }} />
-        <ActivityIndicator />
-      </ThemedView>
-    );
-  }
-
-  if (error || !data || tracks.length === 0) {
-    return (
-      <ThemedView style={styles.center}>
-        <Stack.Screen options={{ title: '전체 듣기' }} />
-        <ThemedText type="small" themeColor="textSecondary">
-          재생할 음원을 불러오지 못했습니다
-        </ThemedText>
-      </ThemedView>
-    );
-  }
-
+  };
+  const loading = !offlineLoaded || (!data && isPending);
   return (
-    <ThemedView style={styles.container}>
-      <Stack.Screen options={{ title: data.examLabel }} />
-
-      <View style={styles.stage}>
-        <ThemedText type="small" themeColor="textSecondary">
-          전체 듣기
-        </ThemedText>
-
-        <ThemedText type="title" style={styles.trackLabel}>
-          {current?.label}
-        </ThemedText>
-
-        <ThemedText type="small" themeColor="textSecondary">
-          {index + 1} / {tracks.length}
-        </ThemedText>
-
-        {finished ? (
-          <ThemedText type="small" style={styles.finished}>
-            끝까지 들었어요
-          </ThemedText>
-        ) : null}
-      </View>
-
-      <View style={styles.playerArea}>
-        <SeekBar
-          positionMs={scrubMs ?? positionMs}
-          durationMs={durationMs}
-          onScrub={setScrubMs}
-          onSeek={handleSeek}
-        />
-
-        <View style={styles.times}>
-          <ThemedText type="small" themeColor="textSecondary">
-            {formatTime((scrubMs ?? positionMs) / 1000)}
-          </ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {formatTime(durationMs / 1000)}
-          </ThemedText>
+    <View style={styles.container}>
+      <StatusBar style="dark" />
+      <PlaybackHeader
+        title={data?.examLabel ?? '리스닝'}
+        subtitle={current?.label ?? '듣기'}
+        onBack={() => router.back()}
+        translation={showTranslation}
+        onTranslation={scriptOpen ? () => setShowTranslation((value) => !value) : undefined}
+      />
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator color="#527C42" />
         </View>
-
-        <View style={styles.controls}>
-          <IconButton
-            ios="backward.end.fill"
-            android="skip_previous"
-            label="이전 트랙"
-            disabled={index === 0}
-            onPress={() => goTo(index - 1)}
-          />
-          <IconButton
-            ios="gobackward.5"
-            android="replay_5"
-            label="5초 뒤로"
-            onPress={() => player.seekTo(Math.max(0, (status.currentTime ?? 0) - 5))}
-          />
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={status.playing ? '일시정지' : '재생'}
-            onPress={() => (status.playing ? player.pause() : player.play())}
-            style={styles.playButton}>
-            <SymbolView
-              name={{
-                ios: status.playing ? 'pause.fill' : 'play.fill',
-                android: status.playing ? 'pause' : 'play_arrow',
-                web: status.playing ? 'pause' : 'play_arrow',
+      ) : !data || tracks.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={styles.hint}>
+            {error ? '음원을 불러오지 못했습니다' : '재생할 음원이 없어요'}
+          </Text>
+        </View>
+      ) : (
+        <>
+          {scriptOpen ? (
+            <PlaybackTranscript
+              key={current?.itemId ?? 'intro'}
+              sentences={detail?.sentences ?? []}
+              positionMs={positionMs}
+              showTranslation={showTranslation}
+              autoScroll={settings.autoScroll}
+              pending={!detail && itemPending}
+              error={!detail && Boolean(itemError)}
+              intro={current?.kind === 'INTRO'}
+              onRetry={() => {
+                void refetchItem();
               }}
-              size={26}
-              tintColor="#ffffff"
-              weight={{ ios: 'semibold', android: { name: 'outlined', font: 500 } }}
+              onSeek={(ms) => {
+                seek(ms);
+                if (!status.playing) player.play();
+              }}
             />
-          </Pressable>
-
-          <IconButton
-            ios="goforward.5"
-            android="forward_5"
-            label="5초 앞으로"
-            onPress={() => player.seekTo((status.currentTime ?? 0) + 5)}
+          ) : (
+            <View style={styles.stage}>
+              <View style={styles.cover}>
+                <Text style={styles.coverLabel}>LISTENING</Text>
+                <View style={styles.wave}>
+                  {[24, 42, 66, 92, 66, 42, 24].map((height, i) => (
+                    <View key={i} style={[styles.waveBar, { height }]} />
+                  ))}
+                </View>
+                <Text style={styles.coverFooter}>ENGLISH PRACTICE</Text>
+              </View>
+              <Text style={styles.trackLabel}>{current?.label}</Text>
+              <Text style={styles.examLabel}>{data.examLabel}</Text>
+              {finished ? <Text style={styles.finished}>끝까지 들었어요</Text> : null}
+            </View>
+          )}
+          <View style={{ paddingBottom: insets.bottom + 12 }}>
+            <PlaybackControls
+              key={current?.itemId ?? 'intro'}
+              positionMs={positionMs}
+              durationMs={durationMs}
+              playing={status.playing}
+              speed={speed}
+              previousDisabled={index === 0}
+              nextDisabled={index >= tracks.length - 1}
+              onPrevious={() => goTo(index - 1)}
+              onNext={() => goTo(index + 1)}
+              onTogglePlay={() => {
+                if (status.playing) player.pause();
+                else {
+                  setFinished(false);
+                  player.play();
+                }
+              }}
+              onSeek={seek}
+              onSpeed={() => setSpeedMenuOpen(true)}
+              speedMenuOpen={speedMenuOpen}
+              onOpenList={setListAnchor}
+              trackLabel={current?.label}
+              scriptOpen={scriptOpen}
+              onToggleScript={() => setScriptOpen((value) => !value)}
+            />
+          </View>
+          <PlaybackSpeedMenu
+            visible={speedMenuOpen}
+            value={speed}
+            onSelect={selectSpeed}
+            onClose={() => setSpeedMenuOpen(false)}
           />
-          <IconButton
-            ios="forward.end.fill"
-            android="skip_next"
-            label="다음 트랙"
-            disabled={index >= tracks.length - 1}
-            onPress={() => goTo(index + 1)}
+          <PlaybackListSheet
+            visible={listAnchor !== null}
+            anchor={listAnchor}
+            title="문항 선택"
+            onClose={() => setListAnchor(null)}
+            onSelect={(id) => goTo(Number(id))}
+            rows={tracks.map((track, i) => ({
+              id: String(i),
+              label: track.label,
+              selected: i === index,
+            }))}
           />
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`재생 속도 ${speed}배`}
-            onPress={changeSpeed}
-            style={[styles.speedButton, { backgroundColor: theme.backgroundElement }]}>
-            <ThemedText type="smallBold">{speed}x</ThemedText>
-          </Pressable>
-        </View>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.trackList}>
-        {tracks.map((track, i) => (
-          <Pressable
-            key={`${track.kind}-${track.itemId ?? 'intro'}`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: i === index }}
-            onPress={() => goTo(i)}
-            style={[
-              styles.trackRow,
-              {
-                backgroundColor: i === index ? theme.backgroundSelected : 'transparent',
-              },
-            ]}>
-            <ThemedText type={i === index ? 'smallBold' : 'small'}>{track.label}</ThemedText>
-          </Pressable>
-        ))}
-      </ScrollView>
-    </ThemedView>
-  );
-}
-
-/** 문항 화면과 같은 방식. 슬라이더 패키지가 없어 PanResponder 로 만든다 */
-function SeekBar({
-  positionMs,
-  durationMs,
-  onScrub,
-  onSeek,
-}: {
-  positionMs: number;
-  durationMs: number;
-  onScrub: (ms: number) => void;
-  onSeek: (ms: number) => void;
-}) {
-  const theme = useTheme();
-  const [width, setWidth] = useState(0);
-
-  const msAt = useCallback(
-    (x: number) => {
-      if (width <= 0 || durationMs <= 0) return 0;
-      return Math.round(Math.min(1, Math.max(0, x / width)) * durationMs);
-    },
-    [width, durationMs],
-  );
-
-  const pan = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: (e) => onScrub(msAt(e.nativeEvent.locationX)),
-        onPanResponderMove: (e) => onScrub(msAt(e.nativeEvent.locationX)),
-        onPanResponderRelease: (e) => onSeek(msAt(e.nativeEvent.locationX)),
-        onPanResponderTerminate: (e) => onSeek(msAt(e.nativeEvent.locationX)),
-      }),
-    [msAt, onScrub, onSeek],
-  );
-
-  const ratio = durationMs > 0 ? Math.min(1, Math.max(0, positionMs / durationMs)) : 0;
-
-  return (
-    <View
-      accessibilityRole="adjustable"
-      accessibilityLabel="재생 위치"
-      accessibilityValue={{ now: Math.round(ratio * 100), min: 0, max: 100 }}
-      hitSlop={SEEK_BAR_HIT_SLOP}
-      style={styles.seekBar}
-      onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}
-      {...pan.panHandlers}>
-      <View style={[styles.seekTrack, { backgroundColor: theme.backgroundElement }]}>
-        <View style={[styles.seekFill, { width: `${ratio * 100}%` }]} />
-      </View>
-      <View style={[styles.seekThumb, { left: `${ratio * 100}%` }]} />
+        </>
+      )}
     </View>
   );
 }
-
-function IconButton({
-  ios,
-  android,
-  label,
-  onPress,
-  disabled,
-}: {
-  ios: SymbolViewProps['name'];
-  android: string;
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  const theme = useTheme();
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: Boolean(disabled) }}
-      disabled={disabled}
-      onPress={onPress}
-      style={[styles.iconButton, disabled ? styles.iconButtonDisabled : null]}>
-      <SymbolView
-        name={{ ios, android, web: android } as SymbolViewProps['name']}
-        size={20}
-        tintColor={theme.text}
-        weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-      />
-    </Pressable>
-  );
-}
-
-function formatTime(seconds: number) {
-  const total = Math.max(0, Math.round(seconds));
-  const minutes = Math.floor(total / 60);
-  return `${minutes}:${`${total % 60}`.padStart(2, '0')}`;
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-
-  stage: { alignItems: 'center', gap: 6, paddingVertical: 28 },
-  trackLabel: { marginVertical: 2 },
-  finished: { color: Palette.success, marginTop: 4 },
-
-  playerArea: { paddingHorizontal: 20, gap: 6 },
-  seekBar: { height: 20, justifyContent: 'center' },
-  seekTrack: { height: 4, borderRadius: 2, overflow: 'hidden' },
-  seekFill: { height: '100%', backgroundColor: Palette.primary },
-  seekThumb: {
-    position: 'absolute',
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    marginLeft: -7,
-    backgroundColor: Palette.primary,
-  },
-  times: { flexDirection: 'row', justifyContent: 'space-between' },
-  controls: { flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center' },
-  iconButton: {
-    width: MIN_TOUCH,
-    height: MIN_TOUCH,
+  container: { flex: 1, backgroundColor: '#E3F2DE' },
+  center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  hint: { color: '#74826C', fontSize: 14 },
+  stage: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 28,
+    paddingVertical: 12,
   },
-  iconButtonDisabled: { opacity: 0.3 },
-  playButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+  cover: {
+    width: '58%',
+    maxWidth: 220,
+    maxHeight: '62%',
+    aspectRatio: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 32,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Palette.primary,
-    marginHorizontal: 4,
+    justifyContent: 'space-evenly',
+    paddingVertical: 18,
+    marginBottom: 26,
   },
-  speedButton: {
-    minWidth: MIN_TOUCH,
-    height: MIN_TOUCH,
-    paddingHorizontal: 10,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+  coverLabel: { color: '#8B9C80', fontSize: 11, letterSpacing: 3, fontWeight: '700' },
+  wave: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+  waveBar: { width: 9, borderRadius: 5, backgroundColor: '#56AD62' },
+  coverFooter: { color: '#8B9C80', fontSize: 8, letterSpacing: 2, fontWeight: '600' },
+  trackLabel: {
+    color: Palette.ink,
+    fontSize: 30,
+    fontWeight: '800',
+    lineHeight: 40,
+    textAlign: 'center',
+    marginBottom: 8,
   },
-
-  trackList: { padding: 20, gap: 2 },
-  trackRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-  },
+  examLabel: { color: '#74826C', fontSize: 14, textAlign: 'center', lineHeight: 21 },
+  finished: { color: '#446F37', fontSize: 13, marginTop: 10 },
 });

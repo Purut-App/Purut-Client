@@ -10,6 +10,8 @@ export type DayListItem = {
   attemptCount: number;
   firstScore: number | null;
   bestScore: number | null;
+  /** 서버가 제공하면 DAY 카드의 게이지에 이 값을 우선 사용한다. */
+  correctCount?: number | null;
   /** 제출하지 않고 나간 응시가 있으면 그 id */
   inProgressAttemptId: string | null;
 };

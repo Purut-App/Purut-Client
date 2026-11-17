@@ -1,6 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
+import { StableScrollView as ScrollView } from '@/components/stable-scroll-view';
 
 import { PrimaryButton } from '@/components/primary-button';
 import { TextField } from '@/components/text-field';
@@ -38,7 +39,8 @@ export default function LoginScreen() {
     <ThemedView style={styles.container}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <View style={styles.header}>
             <ThemedText type="title">푸릇푸릇</ThemedText>
@@ -79,7 +81,12 @@ export default function LoginScreen() {
             onSubmitEditing={canSubmit ? handleSubmit : undefined}
           />
 
-          <PrimaryButton label="로그인" onPress={handleSubmit} loading={submitting} disabled={!canSubmit} />
+          <PrimaryButton
+            label="로그인"
+            onPress={handleSubmit}
+            loading={submitting}
+            disabled={!canSubmit}
+          />
 
           <View style={styles.footer}>
             <ThemedText type="small" themeColor="textSecondary">

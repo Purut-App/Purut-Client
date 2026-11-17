@@ -80,7 +80,8 @@ export function MenuGrid() {
               borderColor: theme.backgroundSelected,
               opacity: pressed ? 0.82 : menu.href ? 1 : 0.58,
             },
-          ]}>
+          ]}
+        >
           <View style={styles.iconBubble}>
             {menu.image ? (
               <Image source={menu.image} style={styles.imageIcon} resizeMode="contain" />

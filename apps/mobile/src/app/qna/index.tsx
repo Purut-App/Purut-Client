@@ -1,15 +1,15 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { SymbolView } from 'expo-symbols';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { StableScrollView as ScrollView } from '@/components/stable-scroll-view';
 
-import { FilterChip, FilterChipRow } from '@/components/filter-chip';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
-import type { QuestionCategory, QuestionListItem, QuestionStatus } from '@/features/qna/api';
+import { QnaText as ThemedText, QnaChrome, QnaStatusChip } from '@/features/qna/qna-ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { APP_BOTTOM_NAV_CONTENT_OFFSET } from '@/components/app-bottom-navigation';
+import type { QuestionCategory, QuestionListItem } from '@/features/qna/api';
 import { useQnaNotices, useQuestions } from '@/features/qna/use-qna';
-import { useTheme } from '@/hooks/use-theme';
 
 const CATEGORIES: { value: QuestionCategory | null; label: string }[] = [
   { value: null, label: '전체' },
@@ -28,25 +28,18 @@ const CATEGORY_LABEL: Record<QuestionCategory, string> = {
   ETC: '기타',
 };
 
-const STATUS_LABEL: Record<QuestionStatus, string> = {
-  PENDING: '답변대기',
-  ANSWERED: '답변완료',
-  REOPENED: '재질문',
-  CLOSED: '종료',
-};
-
-const STATUS_COLOR: Record<QuestionStatus, string> = {
-  PENDING: '#64748B',
-  ANSWERED: Palette.primary,
-  REOPENED: Palette.warning,
-  CLOSED: '#94A3B8',
-};
-
 export default function QnaHomeScreen() {
   const router = useRouter();
-  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const scrollY = useRef(0);
+  const viewportHeight = useRef(0);
+  const [minimumContentHeight, setMinimumContentHeight] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const preservePosition = () =>
+    setMinimumContentHeight(viewportHeight.current + Math.max(0, scrollY.current) + 1);
   const [scope, setScope] = useState<'public' | 'mine'>('public');
   const [answeredOnly, setAnsweredOnly] = useState(false);
+  const [noticesOpen, setNoticesOpen] = useState(false);
   const [category, setCategory] = useState<QuestionCategory | null>(null);
   const status = answeredOnly ? 'ANSWERED' : null;
 
@@ -59,222 +52,415 @@ export default function QnaHomeScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <View style={[styles.header, { borderBottomColor: theme.backgroundElement }]}>
-        <ThemedText type="title">Q&A</ThemedText>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="질문 작성"
-          onPress={() => router.push('/qna/new')}
-          style={styles.writeButton}>
-          <SymbolView
-            name={{ ios: 'square.and.pencil', android: 'edit_note', web: 'edit_note' }}
-            size={18}
-            tintColor="#ffffff"
-            weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-          />
-          <ThemedText type="smallBold" style={styles.writeLabel}>
-            작성
-          </ThemedText>
-        </Pressable>
-      </View>
-
-      <FilterChipRow>
-        <FilterChip
-          label="전체"
-          active={scope === 'public' && !answeredOnly}
-          onPress={() => {
-            setScope('public');
-            setAnsweredOnly(false);
-          }}
-        />
-        <FilterChip
-          label="내질문"
-          active={scope === 'mine'}
-          onPress={() => {
-            setScope('mine');
-            setAnsweredOnly(false);
-          }}
-        />
-        <FilterChip
-          label="답변완료"
-          active={answeredOnly}
-          onPress={() => {
-            setScope('public');
-            setAnsweredOnly(true);
-          }}
-        />
-      </FilterChipRow>
-
-      <FilterChipRow style={styles.categoryRow}>
-        {CATEGORIES.map((item) => (
-          <FilterChip
-            key={item.value ?? 'ALL'}
-            label={item.label}
-            active={category === item.value}
-            onPress={() => setCategory(item.value)}
-          />
-        ))}
-      </FilterChipRow>
-
-      {questions.isPending ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
-        </View>
-      ) : questions.error ? (
-        <View style={styles.center}>
-          <ThemedText type="small" themeColor="textSecondary">
-            질문을 불러오지 못했습니다
-          </ThemedText>
-        </View>
-      ) : (
-        <FlatList
-          data={items}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={items.length === 0 ? styles.emptyList : styles.list}
-          refreshing={questions.isRefetching && !questions.isFetchingNextPage}
-          onRefresh={() => questions.refetch()}
-          onEndReached={() => {
-            if (questions.hasNextPage && !questions.isFetchingNextPage) {
-              questions.fetchNextPage();
-            }
-          }}
-          ListHeaderComponent={
-            <>
-              {(notices.data ?? []).map((notice) => (
-                <View
-                  key={notice.id}
-                  style={[
-                    styles.notice,
-                    { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-                  ]}>
-                  <ThemedText type="smallBold">📌 {notice.title}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary">
-                    {notice.body}
+    <View style={styles.container}>
+      <FlatList
+        onTouchStart={preservePosition}
+        data={questions.error ? [] : items}
+        keyExtractor={(item) => item.id}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={[
+          styles.list,
+          {
+            minHeight: minimumContentHeight,
+            paddingTop: insets.top + 86,
+            paddingBottom: insets.bottom + APP_BOTTOM_NAV_CONTENT_OFFSET,
+          },
+        ]}
+        onLayout={(event) => {
+          viewportHeight.current = event.nativeEvent.layout.height;
+        }}
+        onScroll={(event) => {
+          scrollY.current = event.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
+        refreshing={refreshing}
+        onRefresh={() => {
+          setRefreshing(true);
+          void questions.refetch().finally(() => setRefreshing(false));
+        }}
+        onEndReached={() => {
+          if (questions.hasNextPage && !questions.isFetchingNextPage)
+            void questions.fetchNextPage();
+        }}
+        ListHeaderComponent={
+          <View style={styles.listHeader}>
+            <View style={styles.heading}>
+              <ThemedText type="title">Q&A</ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="질문 작성"
+                onPress={() => router.push('/qna/new')}
+                style={({ pressed }) => [styles.askButton, pressed && styles.pressed]}
+              >
+                <ThemedText style={styles.askButtonText}>질문하기</ThemedText>
+              </Pressable>
+            </View>
+            {(notices.data?.length ?? 0) > 0 ? (
+              <View style={styles.notice}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="공지사항"
+                  accessibilityState={{ expanded: noticesOpen }}
+                  onPress={() => setNoticesOpen((value) => !value)}
+                  style={styles.noticeToggle}
+                >
+                  <SymbolView
+                    name={{ ios: 'pin.fill', android: 'push_pin', web: 'push_pin' }}
+                    size={14}
+                    tintColor="#527C42"
+                  />
+                  <ThemedText type="small" style={styles.noticeLabel}>
+                    공지
                   </ThemedText>
-                </View>
+                  <ThemedText type="small" numberOfLines={1} style={styles.noticeSummary}>
+                    {notices.data?.[0]?.title}
+                  </ThemedText>
+                  <SymbolView
+                    name={
+                      noticesOpen
+                        ? { ios: 'chevron.up', android: 'expand_less', web: 'expand_less' }
+                        : { ios: 'chevron.down', android: 'expand_more', web: 'expand_more' }
+                    }
+                    size={14}
+                    tintColor="#7B8774"
+                  />
+                </Pressable>
+                {noticesOpen ? (
+                  <View style={styles.noticeBody}>
+                    {notices.data?.map((notice) => (
+                      <View key={notice.id} style={styles.noticeItem}>
+                        <ThemedText type="smallBold">{notice.title}</ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary">
+                          {notice.body}
+                        </ThemedText>
+                      </View>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+            <View accessibilityRole="tablist" style={styles.tabs}>
+              {(
+                [
+                  { value: 'public', label: '전체 질문' },
+                  { value: 'mine', label: '내 질문' },
+                ] as const
+              ).map((tab) => (
+                <Pressable
+                  key={tab.value}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: scope === tab.value }}
+                  onPress={() => {
+                    preservePosition();
+                    setScope(tab.value);
+                  }}
+                  style={[styles.tab, scope === tab.value && styles.tabActive]}
+                >
+                  <ThemedText style={[styles.tabText, scope === tab.value && styles.tabTextActive]}>
+                    {tab.label}
+                  </ThemedText>
+                </Pressable>
               ))}
-            </>
-          }
-          ListEmptyComponent={
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categories}
+            >
+              {CATEGORIES.map((option) => (
+                <Pressable
+                  key={option.value ?? 'all'}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: category === option.value }}
+                  onPress={() => {
+                    preservePosition();
+                    setCategory(option.value);
+                  }}
+                  style={[styles.category, category === option.value && styles.categoryActive]}
+                >
+                  <ThemedText
+                    style={[
+                      styles.categoryText,
+                      category === option.value && styles.categoryTextActive,
+                    ]}
+                  >
+                    {option.label}
+                  </ThemedText>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={styles.feedHeading}>
+              <ThemedText type="smallBold">
+                {category
+                  ? CATEGORY_LABEL[category]
+                  : scope === 'mine'
+                    ? '내가 남긴 질문'
+                    : '질문 모아보기'}
+              </ThemedText>
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: answeredOnly }}
+                onPress={() => {
+                  preservePosition();
+                  setAnsweredOnly((value) => !value);
+                }}
+                style={styles.answeredFilter}
+              >
+                <View style={[styles.checkbox, answeredOnly && styles.checkboxActive]}>
+                  {answeredOnly ? (
+                    <SymbolView
+                      name={{ ios: 'checkmark', android: 'check', web: 'check' }}
+                      size={11}
+                      tintColor="#FFFFFF"
+                    />
+                  ) : null}
+                </View>
+                <ThemedText type="small" style={{ color: answeredOnly ? '#446F37' : '#7B8774' }}>
+                  답변 완료만
+                </ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        }
+        ListEmptyComponent={
+          questions.isPending ? (
+            <View style={styles.empty}>
+              <ActivityIndicator color="#527C42" />
+            </View>
+          ) : questions.error ? (
+            <View style={styles.empty}>
+              <ThemedText type="small" themeColor="textSecondary">
+                질문을 불러오지 못했습니다
+              </ThemedText>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  void questions.refetch();
+                }}
+                style={styles.emptyButton}
+              >
+                <ThemedText type="smallBold" style={{ color: '#527C42' }}>
+                  다시 시도
+                </ThemedText>
+              </Pressable>
+            </View>
+          ) : (
             <View style={styles.empty}>
               <ThemedText type="small" themeColor="textSecondary">
                 아직 질문이 없어요. 궁금한 걸 물어보세요
               </ThemedText>
-              <Pressable onPress={() => router.push('/qna/new')} style={styles.emptyButton}>
-                <ThemedText type="smallBold" style={{ color: Palette.primary }}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => router.push('/qna/new')}
+                style={styles.emptyButton}
+              >
+                <ThemedText type="smallBold" style={{ color: '#527C42' }}>
                   질문 작성
                 </ThemedText>
               </Pressable>
             </View>
-          }
-          ListFooterComponent={
-            questions.isFetchingNextPage ? (
-              <View style={styles.footer}>
-                <ActivityIndicator />
-              </View>
-            ) : null
-          }
-          renderItem={({ item }) => <QuestionCard item={item} onPress={() => router.push(`/qna/${item.id}`)} />}
-        />
-      )}
-    </ThemedView>
+          )
+        }
+        ListFooterComponent={
+          questions.isFetchingNextPage ? (
+            <View style={styles.footer}>
+              <ActivityIndicator color="#527C42" />
+            </View>
+          ) : null
+        }
+        ItemSeparatorComponent={QuestionSeparator}
+        renderItem={({ item }) => (
+          <QuestionCard item={item} onPress={() => router.push(`/qna/${item.id}`)} />
+        )}
+      />
+      <QnaChrome />
+    </View>
   );
+}
+
+function QuestionSeparator() {
+  return <View style={styles.questionSeparator} />;
 }
 
 function QuestionCard({ item, onPress }: { item: QuestionListItem; onPress: () => void }) {
-  const theme = useTheme();
-  const statusColor = STATUS_COLOR[item.status];
-
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${CATEGORY_LABEL[item.category]}, ${item.title}, 답변 ${item.answerCount}개`}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        {
-          backgroundColor: theme.backgroundElement,
-          borderColor: theme.backgroundSelected,
-          opacity: pressed ? 0.82 : 1,
-        },
-      ]}>
-      <View style={styles.badges}>
-        <Badge label={CATEGORY_LABEL[item.category]} color={Palette.primary} />
-        <Badge label={STATUS_LABEL[item.status]} color={statusColor} />
-        {!item.publicVisible ? <ThemedText type="small">🔒</ThemedText> : null}
-        {item.mine ? <Badge label="내 질문" color={Palette.success} /> : null}
+      style={({ pressed }) => [styles.questionRow, pressed && styles.questionPressed]}
+    >
+      <View style={styles.questionContext}>
+        <ThemedText style={styles.subject}>{CATEGORY_LABEL[item.category]}</ThemedText>
+        {item.mine ? <ThemedText style={styles.mine}>내 질문</ThemedText> : null}
+        {!item.publicVisible ? (
+          <SymbolView
+            accessibilityLabel="비공개 질문"
+            name={{ ios: 'lock.fill', android: 'lock', web: 'lock' }}
+            size={12}
+            tintColor="#8B9683"
+          />
+        ) : null}
       </View>
-      <ThemedText type="smallBold" numberOfLines={2}>
+      <ThemedText style={styles.questionTitle} numberOfLines={3}>
         {item.title}
       </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {item.authorName} · {formatDate(item.createdAt)}
-        {item.answerCount > 0 ? ` · 답변 ${item.answerCount}` : ''}
-      </ThemedText>
+      <View style={styles.questionMeta}>
+        <View style={styles.author}>
+          <View style={styles.authorAvatar}>
+            <Image
+              source={require('../../../assets/images/character.png')}
+              contentFit="contain"
+              style={styles.authorImage}
+            />
+          </View>
+          <View style={styles.authorLabel}>
+            <ThemedText style={styles.authorName} numberOfLines={1}>
+              {item.authorName}
+            </ThemedText>
+            <ThemedText style={styles.authorDate} numberOfLines={1}>
+              {formatDate(item.createdAt)}
+            </ThemedText>
+          </View>
+        </View>
+        <View style={styles.answerCount}>
+          <SymbolView
+            name={{
+              ios: 'bubble.right',
+              android: 'chat_bubble_outline',
+              web: 'chat_bubble_outline',
+            }}
+            size={13}
+            tintColor="#8B9683"
+          />
+          <ThemedText type="small" themeColor="textSecondary">
+            {item.answerCount}
+          </ThemedText>
+        </View>
+        <QnaStatusChip status={item.status} />
+      </View>
     </Pressable>
-  );
-}
-
-function Badge({ label, color }: { label: string; color: string }) {
-  return (
-    <View style={[styles.badge, { borderColor: color }]}>
-      <ThemedText type="small" style={{ color }}>
-        {label}
-      </ThemedText>
-    </View>
   );
 }
 
 function formatDate(value: string) {
   const date = new Date(value);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  header: {
-    minHeight: 58,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
+  container: { flex: 1, backgroundColor: '#E3F2DE' },
+  list: { paddingHorizontal: 18, flexGrow: 1 },
+  listHeader: { gap: 18, paddingBottom: 12 },
+  heading: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: 4,
   },
-  writeButton: {
+  askButton: {
     minHeight: 44,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    backgroundColor: Palette.primary,
+    paddingHorizontal: 18,
+    borderRadius: 22,
+    backgroundColor: '#527C42',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  askButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  notice: { backgroundColor: '#F3F8EE', borderRadius: 20, overflow: 'hidden' },
+  noticeToggle: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
+    paddingHorizontal: 16,
+    minHeight: 50,
   },
-  writeLabel: { color: '#ffffff' },
-  categoryRow: { paddingTop: 0 },
-  center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  list: { padding: 20, paddingTop: 8, gap: 12 },
-  emptyList: { flexGrow: 1, padding: 20, paddingTop: 8 },
-  notice: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    gap: 6,
-    marginBottom: 12,
+  noticeLabel: { color: '#527C42', fontWeight: '700' },
+  noticeSummary: { flex: 1, color: '#74826C' },
+  noticeBody: { paddingHorizontal: 18, paddingBottom: 18, gap: 18 },
+  noticeItem: { gap: 6 },
+  tabs: {
+    flexDirection: 'row',
+    backgroundColor: '#D7E8CF',
+    borderRadius: 24,
+    padding: 4,
+    marginTop: 6,
   },
-  card: {
-    borderRadius: 14,
-    padding: 16,
-    gap: 10,
-    borderWidth: 1,
-    shadowColor: Palette.shadow,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.07,
-    shadowRadius: 16,
-    elevation: 2,
+  tab: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },
+  tabActive: { backgroundColor: '#FFFFFF' },
+  tabText: { fontSize: 15, color: '#7B8774', fontWeight: '600' },
+  tabTextActive: { color: '#446F37', fontWeight: '700' },
+  categories: { gap: 6 },
+  category: {
+    minHeight: 38,
+    paddingHorizontal: 15,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  badges: { minHeight: 24, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 },
-  badge: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 7, paddingVertical: 3 },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 10 },
-  emptyButton: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12 },
+  categoryActive: { backgroundColor: '#527C42' },
+  categoryText: { fontSize: 13, fontWeight: '600', color: '#7B8774' },
+  categoryTextActive: { color: '#FFFFFF' },
+  feedHeading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingLeft: 4,
+  },
+  answeredFilter: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 4,
+  },
+  checkbox: {
+    width: 17,
+    height: 17,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: '#A7BE99',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkboxActive: { backgroundColor: '#527C42', borderColor: '#527C42' },
+  questionSeparator: { height: 12 },
+  questionRow: {
+    borderRadius: 30,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 24,
+    paddingTop: 24,
+    paddingBottom: 24,
+    gap: 12,
+  },
+  questionPressed: { backgroundColor: '#F5F9F1' },
+  questionContext: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  subject: { color: '#527C42', fontSize: 12, lineHeight: 18, fontWeight: '700' },
+  mine: { color: '#8B9683', fontSize: 11, lineHeight: 18 },
+  questionTitle: { fontSize: 18, fontWeight: '700', lineHeight: 28, letterSpacing: -0.4 },
+  questionMeta: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 4 },
+  author: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center' },
+  authorAvatar: { width: 36, height: 36, borderRadius: 13, backgroundColor: '#CEE5BD', padding: 3 },
+  authorImage: { width: '100%', height: '100%' },
+  authorLabel: { marginLeft: 9, flexShrink: 1 },
+  authorName: { fontSize: 11, lineHeight: 16, fontWeight: '700' },
+  authorDate: { fontSize: 9, lineHeight: 14, color: '#7B8774' },
+  answerCount: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pressed: { opacity: 0.75 },
+  empty: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  emptyButton: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: 16,
+    borderRadius: 22,
+    backgroundColor: '#EDF5E7',
+  },
   footer: { paddingVertical: 16 },
 });

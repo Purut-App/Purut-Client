@@ -1,15 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-
-import { PrimaryButton } from '@/components/primary-button';
-import { TextField } from '@/components/text-field';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ServiceScreen } from '@/components/service-screen';
+import { LearningResultColors } from '@/constants/theme';
+import {
+  SettingsField as TextField,
+  SettingsButton as PrimaryButton,
+} from '@/features/settings/settings-ui';
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useFormError } from '@/features/auth/use-form-error';
-import { useTheme } from '@/hooks/use-theme';
 
 const GRADES = [1, 2, 3];
 
@@ -21,7 +20,6 @@ const GRADES = [1, 2, 3];
  * 학년이 없으면 단어 DAY 가 열리지 않는다.
  */
 export default function OnboardingScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const me = useAuthStore((state) => state.me);
   const submitOnboarding = useAuthStore((state) => state.submitOnboarding);
@@ -32,6 +30,7 @@ export default function OnboardingScreen() {
   const [school, setSchool] = useState(me?.school ?? '');
   const [submitting, setSubmitting] = useState(false);
 
+  const editingProfile = Boolean(me?.onboarded);
   const canSubmit = name.trim().length > 0 && grade !== null && !submitting;
 
   async function handleSubmit() {
@@ -44,7 +43,8 @@ export default function OnboardingScreen() {
         grade,
         school: school.trim() || undefined,
       });
-      router.replace('/');
+      if (editingProfile) router.back();
+      else router.replace('/');
     } catch (error) {
       capture(error);
     } finally {
@@ -53,95 +53,73 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}>
-            <ThemedText type="title">거의 다 됐어요</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              학년에 맞는 단어장을 보여드리려고 해요
-            </ThemedText>
+    <ServiceScreen
+      title={editingProfile ? '프로필 수정' : '프로필 설정'}
+      back={editingProfile}
+      keyboard
+    >
+      <View style={styles.card}>
+        {message ? <Text style={styles.error}>{message}</Text> : null}
+        <TextField
+          label="이름"
+          value={name}
+          onChangeText={setName}
+          error={fields.name}
+          editable={!submitting}
+        />
+        <View style={styles.field}>
+          <Text style={styles.label}>학년</Text>
+          <View style={styles.grades}>
+            {GRADES.map((value) => (
+              <Pressable
+                key={value}
+                accessibilityRole="button"
+                accessibilityState={{ selected: grade === value }}
+                disabled={submitting}
+                onPress={() => setGrade(value)}
+                style={[styles.grade, grade === value && styles.gradeActive]}
+              >
+                <Text style={[styles.gradeText, grade === value && styles.gradeTextActive]}>
+                  고{value}
+                </Text>
+              </Pressable>
+            ))}
           </View>
-
-          {message ? (
-            <ThemedText type="small" style={styles.formError}>
-              {message}
-            </ThemedText>
-          ) : null}
-
-          <TextField label="이름" value={name} onChangeText={setName} error={fields.name} />
-
-          <View style={styles.field}>
-            <ThemedText type="smallBold">학년</ThemedText>
-            <View style={styles.gradeRow}>
-              {GRADES.map((value) => {
-                const active = grade === value;
-                return (
-                  <Pressable
-                    key={value}
-                    onPress={() => setGrade(value)}
-                    style={[
-                      styles.gradeChip,
-                      {
-                        backgroundColor: active ? Palette.primary : theme.backgroundElement,
-                        borderColor: active ? Palette.primary : theme.backgroundSelected,
-                      },
-                    ]}>
-                    <ThemedText type="smallBold" style={active ? styles.gradeTextActive : undefined}>
-                      고{value}
-                    </ThemedText>
-                  </Pressable>
-                );
-              })}
-            </View>
-            {fields.grade ? (
-              <ThemedText type="small" style={styles.formError}>
-                {fields.grade}
-              </ThemedText>
-            ) : null}
-          </View>
-
-          <TextField
-            label="학교 (선택)"
-            value={school}
-            onChangeText={setSchool}
-            error={fields.school}
-            placeholder="정운고등학교"
-          />
-
-          <PrimaryButton
-            label="시작하기"
-            onPress={handleSubmit}
-            loading={submitting}
-            disabled={!canSubmit}
-          />
-
-          <ThemedText type="small" themeColor="textSecondary" style={styles.hint}>
-            학년은 나중에 마이페이지에서 바꿀 수 있어요
-          </ThemedText>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </ThemedView>
+          {fields.grade ? <Text style={styles.error}>{fields.grade}</Text> : null}
+        </View>
+        <TextField
+          label="학교 (선택)"
+          value={school}
+          onChangeText={setSchool}
+          error={fields.school}
+          placeholder="정운고등학교"
+          editable={!submitting}
+        />
+        <PrimaryButton
+          label={editingProfile ? '저장하기' : '시작하기'}
+          onPress={handleSubmit}
+          loading={submitting}
+          disabled={!canSubmit}
+        />
+      </View>
+    </ServiceScreen>
   );
 }
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  flex: { flex: 1 },
-  content: { padding: 24, gap: 18, flexGrow: 1, justifyContent: 'center' },
-  header: { gap: 6, marginBottom: 4 },
-  field: { gap: 8 },
-  gradeRow: { flexDirection: 'row', gap: 8 },
-  gradeChip: {
+  card: { backgroundColor: '#FFFFFF', padding: 24, borderRadius: 30, gap: 22 },
+  field: { gap: 10 },
+  label: { color: '#1A1F2C', fontSize: 15, fontWeight: '600' },
+  grades: { flexDirection: 'row', gap: 10 },
+  grade: {
     flex: 1,
+    minHeight: 48,
+    borderRadius: 24,
+    backgroundColor: '#EDF5E7',
     alignItems: 'center',
-    paddingVertical: 14,
-    borderRadius: 10,
-    borderWidth: 1,
+    justifyContent: 'center',
   },
-  gradeTextActive: { color: '#ffffff' },
-  formError: { color: Palette.danger },
-  hint: { textAlign: 'center' },
+  gradeActive: { backgroundColor: '#527C42' },
+  gradeText: { color: '#527C42', fontSize: 15, fontWeight: '700' },
+  gradeTextActive: { color: '#FFFFFF' },
+  error: { color: LearningResultColors.incorrect.text, fontSize: 12, lineHeight: 20 },
 });
