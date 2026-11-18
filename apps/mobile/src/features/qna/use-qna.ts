@@ -2,6 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 
 import { withAuth } from '@/lib/with-auth';
 
+
 import {
   addQuestionMessage,
   closeQuestion,
@@ -11,6 +12,7 @@ import {
   fetchNotices,
   fetchQuestion,
   fetchQuestions,
+  type AttachmentInput,
   type QuestionCategory,
   type QuestionInput,
   type QuestionStatus,
@@ -25,8 +27,8 @@ export function useQuestions(filters: {
   return useInfiniteQuery({
     queryKey: ['qna', 'questions', filters],
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      withAuth((token) => fetchQuestions(token, { ...filters, cursor: pageParam, size: 20 })),
+    queryFn: ({ pageParam }) => withAuth((token) =>
+      fetchQuestions(token, { ...filters, cursor: pageParam, size: 20 })),
     getNextPageParam: (lastPage) => lastPage.nextCursor,
   });
 }
@@ -34,7 +36,8 @@ export function useQuestions(filters: {
 export function useQuestion(questionId: string) {
   return useQuery({
     queryKey: ['qna', 'question', questionId],
-    queryFn: () => withAuth((token) => fetchQuestion(token, questionId)),
+    queryFn: async () =>
+      withAuth((token) => fetchQuestion(token, questionId)),
     enabled: Boolean(questionId),
   });
 }
@@ -57,7 +60,7 @@ export function useCreateQuestion() {
 export function useUpdateQuestion(questionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: Pick<QuestionInput, 'title' | 'body' | 'publicVisible'>) =>
+    mutationFn: async (body: Pick<QuestionInput, 'title' | 'body' | 'publicVisible'>) =>
       withAuth((token) => updateQuestion(token, questionId, body)),
     onSuccess: (detail) => {
       queryClient.setQueryData(['qna', 'question', questionId], detail);
@@ -69,7 +72,8 @@ export function useUpdateQuestion(questionId: string) {
 export function useDeleteQuestion(questionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => withAuth((token) => deleteQuestion(token, questionId)),
+    mutationFn: async () =>
+      withAuth((token) => deleteQuestion(token, questionId)),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: ['qna', 'question', questionId] });
       queryClient.invalidateQueries({ queryKey: ['qna', 'questions'] });
@@ -80,7 +84,7 @@ export function useDeleteQuestion(questionId: string) {
 export function useAddQuestionMessage(questionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { body: string }) =>
+    mutationFn: (body: { body: string; attachments?: AttachmentInput[] }) =>
       withAuth((token) => addQuestionMessage(token, questionId, body)),
     onSuccess: (detail) => {
       queryClient.setQueryData(['qna', 'question', questionId], detail);
@@ -92,7 +96,8 @@ export function useAddQuestionMessage(questionId: string) {
 export function useCloseQuestion(questionId: string) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => withAuth((token) => closeQuestion(token, questionId)),
+    mutationFn: async () =>
+      withAuth((token) => closeQuestion(token, questionId)),
     onSuccess: (detail) => {
       queryClient.setQueryData(['qna', 'question', questionId], detail);
       queryClient.invalidateQueries({ queryKey: ['qna', 'questions'] });

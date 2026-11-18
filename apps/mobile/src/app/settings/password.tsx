@@ -1,14 +1,14 @@
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, StyleSheet } from 'react-native';
-
-import { PrimaryButton } from '@/components/primary-button';
-import { TextField } from '@/components/text-field';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
+import { Alert, StyleSheet, Text, View } from 'react-native';
+import { ServiceScreen } from '@/components/service-screen';
+import {
+  SettingsField as TextField,
+  SettingsButton as PrimaryButton,
+} from '@/features/settings/settings-ui';
 import { useFormError } from '@/features/auth/use-form-error';
 import { useChangePassword } from '@/features/me/use-me';
-import { Palette } from '@/constants/theme';
+import { LearningResultColors } from '@/constants/theme';
 
 /** 비밀번호 변경. 현재 비밀번호는 서버가 다시 확인한다 */
 export default function ChangePasswordScreen() {
@@ -48,55 +48,45 @@ export default function ChangePasswordScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.container}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <TextField
-            label="현재 비밀번호"
-            value={current}
-            onChangeText={setCurrent}
-            secureTextEntry
-            autoComplete="current-password"
-            error={fields.currentPassword}
-          />
-          <TextField
-            label="새 비밀번호 (8자 이상)"
-            value={next}
-            onChangeText={setNext}
-            secureTextEntry
-            autoComplete="new-password"
-            error={fields.newPassword}
-          />
-          <TextField
-            label="새 비밀번호 확인"
-            value={confirm}
-            onChangeText={setConfirm}
-            secureTextEntry
-            autoComplete="new-password"
-          />
+    <ServiceScreen title="비밀번호 변경" keyboard>
+      <View style={styles.card}>
+        <TextField
+          label="현재 비밀번호"
+          value={current}
+          onChangeText={setCurrent}
+          secureTextEntry
+          autoComplete="current-password"
+          error={fields.currentPassword}
+        />
+        <TextField
+          label="새 비밀번호 (8자 이상)"
+          value={next}
+          onChangeText={setNext}
+          secureTextEntry
+          autoComplete="new-password"
+          error={fields.newPassword}
+        />
+        <TextField
+          label="새 비밀번호 확인"
+          value={confirm}
+          onChangeText={setConfirm}
+          secureTextEntry
+          autoComplete="new-password"
+        />
 
-          {localError ?? message ? (
-            <ThemedText type="small" style={styles.error}>
-              {localError ?? message}
-            </ThemedText>
-          ) : null}
+        {(localError ?? message) ? <Text style={styles.error}>{localError ?? message}</Text> : null}
 
-          <PrimaryButton
-            label="변경하기"
-            onPress={submit}
-            disabled={!canSubmit}
-            loading={changePassword.isPending}
-          />
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </ThemedView>
+        <PrimaryButton
+          label="변경하기"
+          onPress={submit}
+          disabled={!canSubmit}
+          loading={changePassword.isPending}
+        />
+      </View>
+    </ServiceScreen>
   );
 }
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 20, gap: 14 },
-  error: { color: Palette.danger },
+  card: { backgroundColor: '#FFFFFF', padding: 24, borderRadius: 30, gap: 22 },
+  error: { color: LearningResultColors.incorrect.text, fontSize: 13, lineHeight: 21 },
 });

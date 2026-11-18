@@ -1,9 +1,7 @@
 import { SymbolView, type SFSymbol } from 'expo-symbols';
-import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { ThemedText } from '@/components/themed-text';
 import type { SocialProvider } from '@/features/auth/api';
-import { useTheme } from '@/hooks/use-theme';
 
 /**
  * 소셜 로그인 버튼.
@@ -28,7 +26,13 @@ type Style = {
 
 const STYLES: Record<SocialProvider, Style> = {
   KAKAO: { bg: '#FEE500', fg: '#191600', label: '카카오 로그인', symbol: 'message.fill' },
-  GOOGLE: { bg: '#FFFFFF', fg: '#1F1F1F', border: '#DADCE0', label: 'Google로 로그인', symbol: 'g.circle.fill' },
+  GOOGLE: {
+    bg: '#FFFFFF',
+    fg: '#1F1F1F',
+    border: '#DADCE0',
+    label: 'Google로 로그인',
+    symbol: 'g.circle.fill',
+  },
   APPLE: { bg: '#000000', fg: '#FFFFFF', label: 'Apple로 로그인', symbol: 'apple.logo' },
 };
 
@@ -59,7 +63,8 @@ export function SocialButton({
           borderColor: style.border ?? style.bg,
           opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
         },
-      ]}>
+      ]}
+    >
       {loading ? (
         <ActivityIndicator color={style.fg} />
       ) : (
@@ -70,9 +75,7 @@ export function SocialButton({
             tintColor={style.fg}
             weight={{ ios: 'medium', android: { name: 'outlined', font: 500 } }}
           />
-          <ThemedText type="smallBold" style={{ color: style.fg }}>
-            {style.label}
-          </ThemedText>
+          <Text style={[styles.label, { color: style.fg }]}>{style.label}</Text>
         </>
       )}
     </Pressable>
@@ -81,15 +84,11 @@ export function SocialButton({
 
 /** "또는" 구분선. 이메일 로그인과 소셜 로그인 사이를 나눈다. */
 export function Divider({ label }: { label: string }) {
-  const theme = useTheme();
-
   return (
     <View style={styles.divider}>
-      <View style={[styles.line, { backgroundColor: theme.backgroundSelected }]} />
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-      <View style={[styles.line, { backgroundColor: theme.backgroundSelected }]} />
+      <View style={styles.line} />
+      <Text style={styles.dividerLabel}>{label}</Text>
+      <View style={styles.line} />
     </View>
   );
 }
@@ -105,10 +104,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    height: 50,
-    borderRadius: 12,
+    minHeight: 52,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 26,
     borderWidth: 1,
   },
+  label: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  dividerLabel: { color: '#7B8774', fontSize: 12, lineHeight: 19 },
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -118,5 +121,6 @@ const styles = StyleSheet.create({
   line: {
     flex: 1,
     height: 1,
+    backgroundColor: '#E3EBDD',
   },
 });

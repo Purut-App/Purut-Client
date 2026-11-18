@@ -1,191 +1,104 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
+import { SymbolView } from 'expo-symbols';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { ServiceScreen } from '@/components/service-screen';
 import { useAuthStore } from '@/features/auth/auth-store';
-import type { AttemptHistoryItem } from '@/features/me/api';
-import { useAttemptHistory, useMeSummary } from '@/features/me/use-me';
-import { useTheme } from '@/hooks/use-theme';
 
-/**
- * 마이페이지.
- *
- * 담는 것은 "내가 쌓아온 것"이다 — 프로필, 단어시험 기록, 숙제 제출률.
- * 설정처럼 바꾸는 항목은 여기 두지 않는다.
- */
 export default function MyPageScreen() {
-  const theme = useTheme();
   const router = useRouter();
   const me = useAuthStore((state) => state.me);
-
-  const summary = useMeSummary();
-  const history = useAttemptHistory();
-
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        {/* 프로필 */}
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-          ]}>
-          <ThemedText type="subtitle">{me?.name ?? '학생'}</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            {[me?.grade ? `${me.grade}학년` : null, me?.school].filter(Boolean).join(' · ') ||
-              '프로필을 설정해 주세요'}
-          </ThemedText>
+    <ServiceScreen title="마이페이지" back={false}>
+      <View style={styles.profile}>
+        <View style={styles.avatar}>
+          <Image
+            source={require('../../assets/images/character.png')}
+            contentFit="contain"
+            style={styles.image}
+          />
         </View>
-
-        {/* 숙제 제출률 */}
-        <ThemedText type="smallBold" style={styles.sectionTitle}>
-          숙제
-        </ThemedText>
+        <Text style={styles.name}>{me?.name ?? '학생'}</Text>
+        <Text style={styles.school}>
+          {[me?.grade ? `${me.grade}학년` : null, me?.school].filter(Boolean).join(' · ') ||
+            '프로필을 설정해 주세요'}
+        </Text>
+        {me?.email ? <Text style={styles.email}>{me.email}</Text> : null}
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push('/homework')}
-          style={({ pressed }) => [
-            styles.card,
-            {
-              backgroundColor: theme.backgroundElement,
-              borderColor: theme.backgroundSelected,
-              opacity: pressed ? 0.82 : 1,
-            },
-          ]}>
-          {summary.isPending ? (
-            <ActivityIndicator />
-          ) : summary.error || !summary.data ? (
-            <ThemedText type="small" themeColor="textSecondary">
-              불러오지 못했습니다
-            </ThemedText>
-          ) : (
-            <View style={styles.statRow}>
-              <Stat label="전체" value={summary.data.homework.total} />
-              <Stat label="제출" value={summary.data.homework.submitted} />
-              <Stat label="검토완료" value={summary.data.homework.reviewed} />
-              <Stat label="미제출" value={summary.data.homework.pending} warn />
-            </View>
-          )}
+          onPress={() => router.push('/onboarding')}
+          style={styles.edit}
+        >
+          <Text style={styles.editText}>프로필 수정</Text>
         </Pressable>
-
-        {/* 단어시험 */}
-        <ThemedText type="smallBold" style={styles.sectionTitle}>
-          단어시험
-        </ThemedText>
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-          ]}>
-          {summary.isPending ? (
-            <ActivityIndicator />
-          ) : summary.data ? (
-            <View style={styles.statRow}>
-              <Stat label="응시" value={summary.data.vocabulary.attemptCount} />
-              <Stat
-                label="평균"
-                value={summary.data.vocabulary.averageScore ?? '—'}
-                suffix={summary.data.vocabulary.averageScore != null ? '점' : ''}
-              />
-              <Stat
-                label="최고"
-                value={summary.data.vocabulary.bestScore ?? '—'}
-                suffix={summary.data.vocabulary.bestScore != null ? '점' : ''}
-              />
-            </View>
-          ) : null}
-        </View>
-
-        {/* 응시 이력 */}
-        {history.isPending ? (
-          <ActivityIndicator style={styles.spinner} />
-        ) : history.data && history.data.length > 0 ? (
-          <View style={styles.historyList}>
-            {history.data.map((attempt) => (
-              <AttemptRow key={attempt.id} attempt={attempt} />
-            ))}
-          </View>
-        ) : (
-          <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
-            아직 응시한 단어시험이 없어요
-          </ThemedText>
-        )}
-      </ScrollView>
-    </ThemedView>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  suffix,
-  warn,
-}: {
-  label: string;
-  value: number | string;
-  suffix?: string;
-  warn?: boolean;
-}) {
-  return (
-    <View style={styles.stat}>
-      <ThemedText type="subtitle" style={warn && value !== 0 ? styles.warn : undefined}>
-        {value}
-        {suffix ?? ''}
-      </ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-    </View>
-  );
-}
-
-function AttemptRow({ attempt }: { attempt: AttemptHistoryItem }) {
-  const theme = useTheme();
-
-  return (
-    <View style={[styles.historyRow, { borderBottomColor: theme.backgroundElement }]}>
-      <View style={styles.historyBody}>
-        <ThemedText type="small">
-          Day {attempt.dayNo}
-          {attempt.dayTitle ? ` · ${attempt.dayTitle}` : ''}
-        </ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
-          {formatDate(attempt.finishedAt)} · {attempt.correctCount}/{attempt.totalCount}
-        </ThemedText>
       </View>
-      <ThemedText type="smallBold" style={attempt.passed ? styles.scoreHigh : styles.scoreLow}>
-        {Math.round(attempt.score)}점
-      </ThemedText>
-    </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="설정"
+        onPress={() => router.push('/settings')}
+        style={({ pressed }) => [styles.menu, pressed && { opacity: 0.7 }]}
+      >
+        <View style={styles.icon}>
+          <SymbolView
+            name={{ ios: 'gearshape', android: 'settings', web: 'settings' }}
+            size={23}
+            tintColor="#527C42"
+          />
+        </View>
+        <Text style={styles.menuTitle}>설정</Text>
+        <SymbolView
+          name={{ ios: 'chevron.right', android: 'chevron_right', web: 'chevron_right' }}
+          size={17}
+          tintColor="#8B9683"
+        />
+      </Pressable>
+    </ServiceScreen>
   );
 }
-
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return `${d.getMonth() + 1}/${d.getDate()}`;
-}
-
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  content: { padding: 20, gap: 10 },
-  card: { borderRadius: 14, padding: 16, gap: 6, borderWidth: 1 },
-  sectionTitle: { marginTop: 10 },
-  statRow: { flexDirection: 'row', justifyContent: 'space-around' },
-  stat: { alignItems: 'center', gap: 2 },
-  warn: { color: Palette.danger },
-  spinner: { marginTop: 16 },
-  empty: { textAlign: 'center', paddingVertical: 24 },
-  historyList: { marginTop: 4 },
-  historyRow: {
-    flexDirection: 'row',
+  profile: {
+    borderRadius: 32,
+    backgroundColor: '#FFFFFF',
+    padding: 28,
     alignItems: 'center',
-    gap: 12,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
+    gap: 10,
   },
-  historyBody: { flex: 1, gap: 2 },
-  scoreHigh: { color: Palette.success },
-  scoreLow: { color: Palette.danger },
+  avatar: {
+    width: 112,
+    height: 112,
+    borderRadius: 38,
+    backgroundColor: '#EDF5E7',
+    padding: 12,
+    marginBottom: 6,
+  },
+  image: { width: '100%', height: '100%' },
+  name: { color: '#1A1F2C', fontSize: 26, fontWeight: '800', lineHeight: 36 },
+  school: { color: '#74826C', fontSize: 14, lineHeight: 21, textAlign: 'center' },
+  email: { color: '#8B9683', fontSize: 12, textAlign: 'center' },
+  edit: {
+    minHeight: 44,
+    borderRadius: 22,
+    paddingHorizontal: 22,
+    backgroundColor: '#EDF5E7',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  editText: { color: '#527C42', fontSize: 14, fontWeight: '700' },
+  menu: {
+    borderRadius: 28,
+    backgroundColor: '#FFFFFF',
+    padding: 22,
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'center',
+  },
+  icon: {
+    width: 46,
+    height: 46,
+    borderRadius: 17,
+    backgroundColor: '#EDF5E7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  menuTitle: { color: '#1A1F2C', fontSize: 17, fontWeight: '700', flex: 1 },
 });

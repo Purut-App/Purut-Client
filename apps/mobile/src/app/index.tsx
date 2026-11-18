@@ -1,286 +1,214 @@
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { SymbolView } from 'expo-symbols';
-import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { StableScrollView as ScrollView } from '@/components/stable-scroll-view';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
+import { APP_BOTTOM_NAV_CONTENT_OFFSET } from '@/components/app-bottom-navigation';
+import { Fonts, NumberFontFamily, Palette } from '@/constants/theme';
+import { LearningOverview } from '@/features/home/learning-overview';
 import { useAuthStore } from '@/features/auth/auth-store';
-import { MenuGrid } from '@/features/home/menu-grid';
-import { useTheme } from '@/hooks/use-theme';
 
-/**
- * 메인 화면.
- * 아이콘 그리드만 있는 홈은 학생이 무엇을 해야 할지 모른다 →
- * 그리드 위의 "오늘의 할 일" 카드가 리텐션을 만든다 (P2 이후 실데이터 연결).
- */
 export default function HomeScreen() {
-  const theme = useTheme();
+  const insets = useSafeAreaInsets();
+  const { height } = useWindowDimensions();
   const router = useRouter();
-  const me = useAuthStore((state) => state.me);
+  const name = useAuthStore((state) => state.me?.name);
+  const heroHeight = Math.min(420, Math.max(300, height * 0.44));
 
   return (
-    <ThemedView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.topBar}>
-          <ThemedText type="smallBold" style={styles.appName}>
-            푸릇푸릇
-          </ThemedText>
-          <View style={styles.topActions}>
+    <View style={styles.screen}>
+      <StatusBar style="dark" />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + APP_BOTTOM_NAV_CONTENT_OFFSET }}
+      >
+        <View style={[styles.hero, { height: heroHeight, paddingTop: insets.top + 16 }]}>
+          <View style={styles.header}>
+            <View style={styles.greeting}>
+              <Text numberOfLines={2} style={styles.title}>
+                {name ? `${name}님, 안녕하세요` : '안녕하세요'}
+              </Text>
+              <Text style={styles.caption}>오늘도 화이팅!</Text>
+            </View>
+          </View>
+          <View style={styles.characterSlot} pointerEvents="none">
+            <Image
+              source={require('../../assets/images/character.png')}
+              style={styles.characterImage}
+              contentFit="contain"
+              accessibilityLabel="푸릇 캐릭터"
+            />
+          </View>
+        </View>
+
+        <View style={styles.cards}>
+          <View style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.sectionTitle}>오늘의 학습</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalValue}>0</Text>
+              <Text style={styles.totalUnit}>분</Text>
+            </View>
+            <View style={styles.sessionRow}>
+              {['단어', '리스닝', '퀴즈'].map((label) => (
+                <View key={label} style={styles.session}>
+                  <Text style={styles.sessionLabel}>{label}</Text>
+                  <View style={styles.progressTrack} />
+                  <Text style={styles.sessionValue}>
+                    <Text style={styles.sessionNumber}>0</Text>분
+                  </Text>
+                </View>
+              ))}
+            </View>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="마이페이지"
-              onPress={() => router.push('/mypage')}
-              hitSlop={10}
-              style={styles.topIconButton}>
+              onPress={() => router.push('/study')}
+              style={({ pressed }) => [styles.studyButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.studyButtonText}>공부하러 가기</Text>
               <SymbolView
-                name={{ ios: 'person.circle', android: 'person', web: 'person' }}
-                size={20}
-                tintColor={Palette.primary}
-                weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-              />
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="설정"
-              onPress={() => router.push('/settings')}
-              hitSlop={10}
-              style={styles.topIconButton}>
-              <SymbolView
-                name={{ ios: 'gearshape', android: 'settings', web: 'settings' }}
-                size={19}
-                tintColor={Palette.primary}
-                weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
+                name={{ ios: 'arrow.right', android: 'arrow_forward', web: 'arrow_forward' }}
+                size={18}
+                tintColor="#FFFFFF"
               />
             </Pressable>
           </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardHeading}>
+              <Text style={styles.sectionTitle}>이번 주 학습</Text>
+              <Text style={styles.periodLabel}>월 ~ 일</Text>
+            </View>
+            <View style={styles.studyChart} accessible accessibilityLabel="주간 학습 시간 0분">
+              {['월', '화', '수', '목', '금', '토', '일'].map((day) => (
+                <View key={day} style={styles.chartColumn}>
+                  <Text style={styles.chartValue}>0</Text>
+                  <View style={styles.barTrack}>
+                    <View style={[styles.bar, { height: 3 }]} />
+                  </View>
+                  <Text style={styles.dayLabel}>{day}</Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.statRow}>
+              <EmptyStat label="학습" unit="회" />
+              <EmptyStat label="퀴즈" unit="회" />
+              <EmptyStat label="학습 시간" unit="시간" />
+            </View>
+          </View>
+          <LearningOverview />
+
         </View>
-
-        <View
-          style={[
-            styles.header,
-            { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-          ]}>
-          <View style={styles.cloudOne} />
-          <View style={styles.cloudTwo} />
-          <View style={styles.cloudThree} />
-          <SymbolView
-            name={{ ios: 'paperplane.fill', android: 'send', web: 'send' }}
-            size={24}
-            tintColor={Palette.secondaryBlue}
-            style={styles.paperPlane}
-          />
-          <View style={styles.headerCopy}>
-            <ThemedText type="smallBold" style={styles.eyebrow}>
-              PURUT PURUT
-            </ThemedText>
-            <ThemedText type="title">
-              {me ? `${me.name}님, 안녕하세요 👋` : '안녕하세요 👋'}
-            </ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              {me?.onboarded
-                ? `고${me.grade} · ${me.school ?? '학교 미등록'}`
-                : '학년과 반 정보를 아직 등록하지 않았어요'}
-            </ThemedText>
-          </View>
-          <View style={styles.badge}>
-            <ThemedText type="smallBold" style={styles.badgeText}>
-              오늘
-            </ThemedText>
-          </View>
-        </View>
-
-        <MenuGrid />
-
-        <View style={styles.cheerCard}>
-          <View style={styles.cheerIcon}>
-            <ThemedText type="smallBold">🏆</ThemedText>
-          </View>
-          <View style={styles.cheerCopy}>
-            <ThemedText type="smallBold">오늘도 화이팅!</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              꾸준함이 실력을 만듭니다.
-            </ThemedText>
-          </View>
-          <ThemedText style={styles.sparkle}>✦</ThemedText>
-          <SymbolView
-            name={{ ios: 'paperplane.fill', android: 'send', web: 'send' }}
-            size={17}
-            tintColor={Palette.primary}
-            style={styles.cheerPlane}
-          />
-        </View>
-
-        <Pressable accessibilityRole="button" style={styles.calendarButton}>
-          <SymbolView
-            name={{ ios: 'calendar', android: 'calendar_month', web: 'calendar_month' }}
-            size={17}
-            tintColor={Palette.primary}
-            weight={{ ios: 'regular', android: { name: 'outlined', font: 400 } }}
-          />
-          <ThemedText type="smallBold" style={styles.calendarText}>
-            캘린더
-          </ThemedText>
-        </Pressable>
       </ScrollView>
-    </ThemedView>
+    </View>
+  );
+}
+
+function EmptyStat({ label, unit }: { label: string; unit: string }) {
+  return (
+    <View style={styles.stat}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>0<Text style={styles.statUnit}> {unit}</Text></Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-    paddingTop: 16,
-    paddingBottom: 28,
-    gap: 16,
-  },
-  topBar: {
-    minHeight: 44,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  appName: {
-    color: Palette.ink,
-    fontSize: 18,
-  },
-  topActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  topIconButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: Palette.line,
-  },
+  pressed: { opacity: 0.75 },
+  screen: { flex: 1, backgroundColor: '#E3F2DE' },
+  hero: { paddingHorizontal: 24, position: 'relative', overflow: 'hidden' },
   header: {
-    minHeight: 188,
-    borderRadius: 24,
-    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
-    borderWidth: 1,
-    overflow: 'hidden',
-    shadowColor: Palette.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 16,
-    elevation: 2,
+    gap: 16,
+    zIndex: 1,
   },
-  headerCopy: {
-    width: '72%',
-    gap: 8,
-  },
-  eyebrow: {
-    color: Palette.primary,
-  },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: Palette.primary,
-    borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  badgeText: {
-    color: '#ffffff',
-  },
-  cloudOne: {
-    position: 'absolute',
-    right: 22,
-    bottom: 30,
-    width: 96,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: Palette.primarySoft,
-  },
-  cloudTwo: {
-    position: 'absolute',
-    right: 56,
-    bottom: 55,
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: '#EDF7FF',
-  },
-  cloudThree: {
-    position: 'absolute',
-    right: -20,
-    bottom: -24,
-    width: 148,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#F5FBFF',
-  },
-  paperPlane: {
-    position: 'absolute',
-    right: 34,
-    bottom: 88,
-    color: Palette.secondaryBlue,
-    fontSize: 23,
-    transform: [{ rotate: '-16deg' }],
-  },
-  cheerCard: {
-    minHeight: 86,
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: Palette.primarySoft,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#CFE6FF',
-  },
-  cheerIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  cheerCopy: {
+  greeting: { flex: 1, gap: 6 },
+  title: { color: Palette.ink, fontSize: 24, fontWeight: '700', letterSpacing: -0.7 },
+  caption: { color: '#555555', fontSize: 15 },
+  characterSlot: {
     flex: 1,
-    gap: 2,
-  },
-  sparkle: {
-    position: 'absolute',
-    right: 18,
-    top: 14,
-    color: Palette.secondaryBlue,
-    fontSize: 18,
-  },
-  cheerPlane: {
-    position: 'absolute',
-    right: 30,
-    bottom: 14,
-    color: Palette.primary,
-    fontSize: 17,
-    transform: [{ rotate: '-18deg' }],
-  },
-  calendarButton: {
-    alignSelf: 'center',
-    minWidth: 132,
-    minHeight: 42,
-    borderRadius: 999,
-    paddingHorizontal: 18,
-    flexDirection: 'row',
+    minHeight: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    marginTop: 12,
+    marginBottom: 28,
+  },
+  characterImage: {
+    width: '78%',
+    height: '100%',
+  },
+  cards: { marginTop: -12, paddingHorizontal: 16, gap: 14 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 22 },
+  cardHeading: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     gap: 8,
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: Palette.line,
   },
-  calendarText: {
-    color: Palette.primaryDark,
+  sectionTitle: { color: Palette.ink, fontSize: 19, fontWeight: '700', letterSpacing: -0.5 },
+  periodLabel: { color: '#737373', fontSize: 12 },
+  totalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 8 },
+  totalValue: {
+    color: Palette.ink,
+    fontSize: 48,
+    fontFamily: NumberFontFamily,
+    letterSpacing: -2,
+    fontVariant: ['tabular-nums'],
   },
+  totalUnit: { color: '#666666', fontSize: 18, fontWeight: '600' },
+  sessionRow: { flexDirection: 'row', gap: 18, marginTop: 14, marginBottom: 22 },
+  session: { flex: 1, gap: 8 },
+  sessionLabel: { color: '#666666', fontSize: 13 },
+  progressTrack: { height: 5, borderRadius: 3, backgroundColor: Palette.line, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 3, backgroundColor: Palette.primary },
+  sessionNumber: { fontFamily: NumberFontFamily, fontWeight: 'normal' },
+  sessionValue: { color: Palette.ink, fontSize: 14, fontWeight: '600' },
+  studyButton: {
+    minHeight: 50,
+    borderRadius: 18,
+    backgroundColor: Palette.ink,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  studyButtonText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  studyChart: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 12,
+    marginTop: 24,
+    marginBottom: 22,
+  },
+  chartColumn: { flex: 1, alignItems: 'center', gap: 8 },
+  chartValue: { color: '#737373', fontSize: 11, fontVariant: ['tabular-nums'] },
+  barTrack: { width: '100%', height: 84, justifyContent: 'flex-end' },
+  bar: { width: '100%', borderRadius: 7, backgroundColor: '#E9E9E9' },
+  todayBar: { backgroundColor: Palette.primary },
+  dayLabel: { color: '#737373', fontSize: 12, fontWeight: '500' },
+  accentText: { color: Palette.primaryDark, fontWeight: '700' },
+  statRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 18,
+    borderTopWidth: 1,
+    borderTopColor: Palette.line,
+  },
+  stat: { flex: 1, gap: 8 },
+  statLabel: { color: '#737373', fontSize: 12 },
+  statValue: {
+    color: Palette.ink,
+    fontSize: 22,
+    fontFamily: NumberFontFamily,
+    fontVariant: ['tabular-nums'],
+  },
+  statUnit: { color: '#737373', fontSize: 12, fontWeight: '500', fontFamily: Fonts.sans },
 });

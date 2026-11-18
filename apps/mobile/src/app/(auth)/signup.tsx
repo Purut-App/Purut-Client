@@ -1,12 +1,7 @@
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
-
-import { PrimaryButton } from '@/components/primary-button';
-import { TextField } from '@/components/text-field';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Palette } from '@/constants/theme';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { AuthScreen, AuthField, AuthButton, AuthError, authStyles } from '@/features/auth/auth-ui';
 import type { SocialProvider } from '@/features/auth/api';
 import { useAuthStore } from '@/features/auth/auth-store';
 import {
@@ -16,11 +11,9 @@ import {
 } from '@/features/auth/social-login';
 import { availableProviders, Divider, SocialButton } from '@/features/auth/social-buttons';
 import { useFormError } from '@/features/auth/use-form-error';
-import { useTheme } from '@/hooks/use-theme';
 
 export default function SignUpScreen() {
   const router = useRouter();
-  const theme = useTheme();
   const register = useAuthStore((state) => state.register);
   const signInWithSocial = useAuthStore((state) => state.signInWithSocial);
   const { message, fields, capture, clear } = useFormError();
@@ -32,6 +25,7 @@ export default function SignUpScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [pendingProvider, setPendingProvider] = useState<SocialProvider | null>(null);
 
+  const busy = submitting || pendingProvider !== null;
   const canSubmit =
     name.trim().length > 0 &&
     email.trim().length > 0 &&
@@ -74,190 +68,114 @@ export default function SignUpScreen() {
   }
 
   return (
-    <ThemedView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <View style={styles.header}>
-            <ThemedText type="title">회원가입</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              푸릇푸릇 학습을 시작하려면 계정을 만들어 주세요
-            </ThemedText>
-          </View>
-
-          {message ? (
-            <ThemedText type="small" style={styles.formError}>
-              {message}
-            </ThemedText>
-          ) : null}
-
-          <TextField
-            label="이름"
-            value={name}
-            onChangeText={setName}
-            error={fields.name}
-            placeholder="김학생"
-            autoComplete="name"
-            textContentType="name"
+    <AuthScreen
+      title="회원가입"
+      footer={
+        <View style={authStyles.footer}>
+          <Text style={authStyles.footerText}>이미 계정이 있으신가요?</Text>
+          <Link href="/login" replace style={authStyles.link}>
+            로그인
+          </Link>
+        </View>
+      }
+    >
+      <AuthError message={message} />
+      <AuthField
+        label="이름"
+        value={name}
+        onChangeText={setName}
+        error={fields.name}
+        placeholder="이름을 입력해 주세요"
+        autoComplete="name"
+        textContentType="name"
+        editable={!busy}
+      />
+      <AuthField
+        label="이메일"
+        value={email}
+        onChangeText={setEmail}
+        error={fields.email}
+        placeholder="이메일을 입력해 주세요"
+        autoCapitalize="none"
+        autoComplete="email"
+        keyboardType="email-address"
+        inputMode="email"
+        textContentType="emailAddress"
+        editable={!busy}
+      />
+      <AuthField
+        label="비밀번호"
+        value={password}
+        onChangeText={setPassword}
+        error={fields.password}
+        placeholder="8자 이상"
+        secureTextEntry
+        autoCapitalize="none"
+        autoComplete="new-password"
+        textContentType="newPassword"
+        editable={!busy}
+        returnKeyType="go"
+        onSubmitEditing={canSubmit ? handleSubmit : undefined}
+      />
+      <View style={styles.consent}>
+        <Text style={styles.consentText}>
+          수집 항목: 이름, 이메일 · 목적: 학습 기록 관리 및 본인 확인
+        </Text>
+      </View>
+      <Pressable
+        accessibilityRole="checkbox"
+        accessibilityLabel="이용약관 및 개인정보처리방침 필수 동의"
+        accessibilityState={{ checked: agreed, disabled: busy }}
+        disabled={busy}
+        onPress={() => setAgreed((previous) => !previous)}
+        style={styles.agreeRow}
+      >
+        <View style={[styles.checkbox, agreed && styles.checkboxChecked]}>
+          {agreed ? <Text style={styles.check}>✓</Text> : null}
+        </View>
+        <Text style={styles.agreeText}>
+          <Text style={styles.required}>(필수)</Text> 이용약관 및 개인정보처리방침에 동의합니다
+        </Text>
+      </Pressable>
+      <AuthButton
+        label="가입하기"
+        onPress={handleSubmit}
+        loading={submitting}
+        disabled={!canSubmit}
+      />
+      <Divider label="또는" />
+      <View style={authStyles.socials}>
+        {availableProviders().map((provider) => (
+          <SocialButton
+            key={provider}
+            provider={provider}
+            onPress={() => handleSocial(provider)}
+            loading={pendingProvider === provider}
+            disabled={!agreed || (busy && pendingProvider !== provider)}
           />
-
-          <TextField
-            label="이메일"
-            value={email}
-            onChangeText={setEmail}
-            error={fields.email}
-            placeholder="student@example.com"
-            autoCapitalize="none"
-            autoComplete="email"
-            keyboardType="email-address"
-            inputMode="email"
-            textContentType="emailAddress"
-          />
-
-          <TextField
-            label="비밀번호"
-            value={password}
-            onChangeText={setPassword}
-            error={fields.password}
-            placeholder="8자 이상"
-            secureTextEntry
-            autoCapitalize="none"
-            autoComplete="new-password"
-            textContentType="newPassword"
-          />
-
-          {/* 수집 항목과 목적을 화면에 명시한다 — 소셜 로그인 검수에서도 확인하는 부분이다 */}
-          <View
-            style={[
-              styles.consent,
-              { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-            ]}>
-            <ThemedText type="small" themeColor="textSecondary">
-              수집 항목: 이름, 이메일 · 목적: 학습 기록 관리 및 본인 확인
-            </ThemedText>
-          </View>
-
-          <Pressable
-            accessibilityRole="checkbox"
-            accessibilityState={{ checked: agreed }}
-            onPress={() => setAgreed((prev) => !prev)}
-            style={styles.agreeRow}>
-            <View
-              style={[
-                styles.checkbox,
-                {
-                  borderColor: agreed ? Palette.primary : theme.textSecondary,
-                  backgroundColor: agreed ? Palette.primary : 'transparent',
-                },
-              ]}>
-              {agreed ? <ThemedText style={styles.check}>✓</ThemedText> : null}
-            </View>
-            <ThemedText type="small">
-              <ThemedText type="smallBold">(필수)</ThemedText> 이용약관 및 개인정보처리방침에
-              동의합니다
-            </ThemedText>
-          </Pressable>
-
-          <PrimaryButton
-            label="가입하기"
-            onPress={handleSubmit}
-            loading={submitting}
-            disabled={!canSubmit}
-          />
-
-          <Divider label="또는" />
-
-          <View style={styles.socials}>
-            {availableProviders().map((provider) => (
-              <SocialButton
-                key={provider}
-                provider={provider}
-                onPress={() => handleSocial(provider)}
-                loading={pendingProvider === provider}
-                disabled={!agreed || (submitting && pendingProvider !== provider)}
-              />
-            ))}
-          </View>
-
-          {!agreed ? (
-            <ThemedText type="small" themeColor="textSecondary" style={styles.socialHint}>
-              소셜 로그인도 약관 동의 후 이용할 수 있어요
-            </ThemedText>
-          ) : null}
-
-          <View style={styles.footer}>
-            <ThemedText type="small" themeColor="textSecondary">
-              이미 계정이 있으신가요?
-            </ThemedText>
-            <Link href="/login" replace>
-              <ThemedText type="smallBold" style={styles.link}>
-                로그인
-              </ThemedText>
-            </Link>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </ThemedView>
+        ))}
+      </View>
+      {!agreed ? (
+        <Text style={authStyles.notice}>소셜 로그인도 약관 동의 후 이용할 수 있어요</Text>
+      ) : null}
+    </AuthScreen>
   );
 }
-
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  content: {
-    padding: 24,
-    gap: 16,
-    flexGrow: 1,
-    justifyContent: 'center',
-  },
-  header: {
-    gap: 6,
-    marginBottom: 4,
-  },
-  formError: {
-    color: Palette.danger,
-  },
-  consent: {
-    borderRadius: 10,
-    padding: 12,
-    borderWidth: 1,
-  },
-  agreeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
+  consent: { backgroundColor: '#F6F9F3', borderRadius: 18, padding: 14 },
+  consentText: { color: '#74826C', fontSize: 12, lineHeight: 20 },
+  agreeRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 44 },
   checkbox: {
-    width: 22,
-    height: 22,
-    borderRadius: 6,
+    width: 24,
+    height: 24,
+    borderRadius: 8,
     borderWidth: 1.5,
+    borderColor: '#A7BE99',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  check: {
-    color: '#ffffff',
-    fontSize: 14,
-    lineHeight: 18,
-  },
-  socials: {
-    gap: 10,
-  },
-  socialHint: {
-    textAlign: 'center',
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-  },
-  link: {
-    color: Palette.primary,
-  },
+  checkboxChecked: { backgroundColor: '#527C42', borderColor: '#527C42' },
+  check: { color: '#FFFFFF', fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  agreeText: { flex: 1, color: '#586153', fontSize: 13, lineHeight: 21 },
+  required: { color: '#527C42', fontWeight: '700' },
 });

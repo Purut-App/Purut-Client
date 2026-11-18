@@ -39,35 +39,34 @@ export function useQuizSession(attemptId: string, { onFinish, onError }: Options
     };
   }, [attemptId, onError]);
 
-  const select = useCallback(
-    async (choiceIndex: number) => {
-      if (!attempt) return;
-      const question = attempt.questions[index];
+  const select = useCallback(async (choiceIndex: number): Promise<'NEXT' | 'FINISHED' | 'FAILED'> => {
+    if (!attempt) return 'FAILED';
+    const question = attempt.questions[index];
 
-      try {
-        await withAuth((token) =>
-          saveAnswer(token, attemptId, { wordId: question.wordId, selectedIndex: choiceIndex }),
-        );
-      } catch (error) {
-        onError(error instanceof Error ? error.message : '답을 저장하지 못했습니다');
-        return;
-      }
+    try {
+      await withAuth((token) =>
+        saveAnswer(token, attemptId, { wordId: question.wordId, selectedIndex: choiceIndex }),
+      );
+    } catch (error) {
+      onError(error instanceof Error ? error.message : '답을 저장하지 못했습니다');
+      return 'FAILED';
+    }
 
-      const isLast = index >= attempt.questions.length - 1;
-      if (!isLast) {
-        setIndex(index + 1);
-        return;
-      }
+    const isLast = index >= attempt.questions.length - 1;
+    if (!isLast) {
+      setIndex(index + 1);
+      return 'NEXT';
+    }
 
-      try {
-        await submit.mutateAsync();
-        onFinish();
-      } catch (error) {
-        onError(error instanceof Error ? error.message : '제출하지 못했습니다');
-      }
-    },
-    [attempt, attemptId, index, onError, onFinish, submit],
-  );
+    try {
+      await submit.mutateAsync();
+      onFinish();
+      return 'FINISHED';
+    } catch (error) {
+      onError(error instanceof Error ? error.message : '제출하지 못했습니다');
+      return 'FAILED';
+    }
+  }, [attempt, attemptId, index, onError, onFinish, submit]);
 
   return {
     attempt,

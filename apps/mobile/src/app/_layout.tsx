@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { setAudioModeAsync } from 'expo-audio';
+import { useFonts } from 'expo-font';
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -7,6 +8,8 @@ import { ActivityIndicator, StyleSheet, useColorScheme, View } from 'react-nativ
 
 import { useAuthStore } from '@/features/auth/auth-store';
 import { useProgressQueueFlush } from '@/features/listening/use-network';
+import { AppBottomNavigation } from '@/components/app-bottom-navigation';
+import { NumberFontFamily } from '@/constants/theme';
 
 /** 서버 상태는 TanStack Query, UI 상태는 Zustand 로 분리한다. */
 function createQueryClient() {
@@ -49,7 +52,9 @@ function useAuthRedirect() {
       return;
     }
 
-    if (inAuthGroup || inOnboarding) {
+    // The onboarding form also edits an existing profile from My Page/settings.
+    // Its submit handler owns navigation after saving, so keep that route open.
+    if (inAuthGroup) {
       router.replace('/');
     }
   }, [restoring, tokens, me, segments, router]);
@@ -59,6 +64,9 @@ function useAuthRedirect() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [fontsLoaded, fontError] = useFonts({
+    [NumberFontFamily]: require('../../assets/fonts/BricolageGrotesque-ExtraBold.ttf'),
+  });
   const [queryClient] = useState(createQueryClient);
   const restore = useAuthStore((state) => state.restore);
 
@@ -84,7 +92,13 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
         <StatusBar style="auto" />
-        <RootNavigator />
+        {fontsLoaded || fontError ? (
+          <RootNavigator />
+        ) : (
+          <View style={styles.loading}>
+            <ActivityIndicator />
+          </View>
+        )}
       </ThemeProvider>
     </QueryClientProvider>
   );
@@ -105,43 +119,63 @@ function RootNavigator() {
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="index" options={{ title: '푸릇푸릇' }} />
-      <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
-      <Stack.Screen name="(auth)/signup" options={{ title: '회원가입' }} />
-      <Stack.Screen name="onboarding" options={{ title: '프로필 설정', headerBackVisible: false }} />
-      <Stack.Screen name="mypage" options={{ title: '마이페이지' }} />
-      <Stack.Screen name="settings" options={{ title: '설정' }} />
-      <Stack.Screen name="settings/password" options={{ title: '비밀번호 변경' }} />
-      <Stack.Screen name="homework/index" options={{ title: '숙제' }} />
-      <Stack.Screen name="homework/[id]" options={{ title: '숙제 상세' }} />
-      <Stack.Screen name="vocabulary/index" options={{ title: '단어시험' }} />
-      <Stack.Screen name="vocabulary/[dayId]" options={{ title: '단어장' }} />
-      <Stack.Screen name="vocabulary/wrong-notes" options={{ title: '오답노트' }} />
-      {/*
+    <View style={styles.navigator}>
+      <Stack>
+        <Stack.Screen name="index" options={{ animation: 'none', headerShown: false }} />
+        <Stack.Screen
+          name="calendar"
+          options={{ animation: 'none', headerShown: false }}
+        />
+        <Stack.Screen name="study" options={{ animation: 'none', headerShown: false }} />
+        <Stack.Screen name="(auth)/login" options={{ headerShown: false }} />
+        <Stack.Screen name="(auth)/signup" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="onboarding"
+          options={{ headerShown: false, headerBackVisible: false }}
+        />
+        <Stack.Screen name="mypage" options={{ animation: 'none', headerShown: false }} />
+        <Stack.Screen name="settings" options={{ headerShown: false }} />
+        <Stack.Screen name="settings/password" options={{ headerShown: false }} />
+        <Stack.Screen name="homework/index" options={{ headerShown: false }} />
+        <Stack.Screen name="homework/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="vocabulary/index" options={{ headerShown: false }} />
+        <Stack.Screen name="vocabulary/[dayId]" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="vocabulary/wrong-notes"
+          options={{ title: '오답노트', headerShown: false }}
+        />
+        {/*
         시험 중 실수로 빠져나가지 않도록 헤더 뒤로가기와 스와이프는 막되,
         화면 안의 "중단하기"로는 나갈 수 있게 한다 (확인 후 이탈, 답은 저장됨)
       */}
-      <Stack.Screen
-        name="quiz/[attemptId]/index"
-        options={{ title: '단어시험', headerBackVisible: false, gestureEnabled: false }}
-      />
-      <Stack.Screen name="quiz/[attemptId]/result" options={{ title: '시험 결과' }} />
-      <Stack.Screen name="wiki/index" options={{ title: 'Wiki' }} />
-      {/* 제목은 화면 안에서 "1. 문장의 기본 구조" 로 보여준다 */}
-      <Stack.Screen name="wiki/[chapterId]" options={{ title: '' }} />
-      <Stack.Screen name="wiki/favorites" options={{ title: '즐겨찾기' }} />
-      <Stack.Screen name="listening/index" options={{ title: '리스닝' }} />
-      <Stack.Screen name="listening/downloads" options={{ title: '저장한 회차' }} />
-      {/* 아래 두 화면은 제목을 시험 이름으로 바꾼다. 데이터를 받은 뒤라 화면 쪽에서 설정한다 */}
-      <Stack.Screen name="listening/[examId]/index" options={{ title: '' }} />
-      <Stack.Screen name="listening/[examId]/full" options={{ title: '' }} />
-      <Stack.Screen name="listening/[examId]/[itemId]" options={{ title: '듣기 학습' }} />
-    </Stack>
+        <Stack.Screen
+          name="quiz/[attemptId]/index"
+          options={{ headerShown: false, gestureEnabled: false }}
+        />
+        <Stack.Screen
+          name="quiz/[attemptId]/result"
+          options={{ title: '시험 결과', headerShown: false }}
+        />
+        <Stack.Screen name="qna/index" options={{ headerShown: false }} />
+        <Stack.Screen name="qna/new" options={{ headerShown: false }} />
+        <Stack.Screen name="qna/[id]" options={{ headerShown: false }} />
+        <Stack.Screen name="listening/index" options={{ headerShown: false }} />
+        <Stack.Screen name="listening/downloads" options={{ headerShown: false }} />
+        {/* 아래 두 화면은 제목을 시험 이름으로 바꾼다. 데이터를 받은 뒤라 화면 쪽에서 설정한다 */}
+        <Stack.Screen name="listening/[examId]/index" options={{ headerShown: false }} />
+        <Stack.Screen name="listening/[examId]/full" options={{ headerShown: false }} />
+        <Stack.Screen name="listening/[examId]/[itemId]" options={{ headerShown: false }} />
+        <Stack.Screen name="wiki/index" options={{ headerShown: false }} />
+        <Stack.Screen name="wiki/[chapterId]" options={{ headerShown: false }} />
+        <Stack.Screen name="wiki/favorites" options={{ headerShown: false }} />
+      </Stack>
+      <AppBottomNavigation />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  navigator: { flex: 1 },
   loading: {
     flex: 1,
     alignItems: 'center',

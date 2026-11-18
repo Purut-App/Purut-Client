@@ -1,9 +1,9 @@
 import type { CalendarStatus } from './api';
-import { Palette } from '@/constants/theme';
+import { Palette, LearningResultColors } from '@/constants/theme';
 
 /** 캘린더 점·뱃지 색. 기획안 5.3의 4색 규칙을 그대로 따른다. */
 export const STATUS_STYLE: Record<CalendarStatus, { label: string; color: string }> = {
-  NOT_SUBMITTED: { label: '미제출', color: Palette.danger },
+  NOT_SUBMITTED: { label: '미제출', color: LearningResultColors.incorrect.text },
   OVERDUE: { label: '기한초과', color: '#8E4EC6' },
   SUBMITTED: { label: '제출완료', color: Palette.primary },
   REVIEWED: { label: '첨삭완료', color: Palette.success },

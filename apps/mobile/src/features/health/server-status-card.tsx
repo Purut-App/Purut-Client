@@ -24,7 +24,8 @@ export function ServerStatusCard() {
       style={[
         styles.card,
         { backgroundColor: theme.backgroundElement, borderColor: theme.backgroundSelected },
-      ]}>
+      ]}
+    >
       <View style={styles.row}>
         <View style={styles.titleRow}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />

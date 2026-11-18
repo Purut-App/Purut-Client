@@ -21,7 +21,8 @@ export function PrimaryButton({ label, loading, disabled, style, ...rest }: Prop
         state.pressed && styles.pressed,
         typeof style === 'function' ? style(state) : style,
       ]}
-      {...rest}>
+      {...rest}
+    >
       {loading ? (
         <ActivityIndicator color="#ffffff" />
       ) : (
